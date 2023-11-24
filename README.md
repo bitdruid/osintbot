@@ -1,4 +1,4 @@
-![Version](https://img.shields.io/badge/Version-0.1.0-blue.svg)
+![Version](https://img.shields.io/badge/Version-0.1.1-blue.svg)
 ![Release](https://img.shields.io/badge/Release-Alpha-red.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
@@ -19,7 +19,7 @@ docker run -d --name osintbot osintbot -e BOT_TOKEN=<token of your bot> -e BOT_A
 | env               | description                                          | default       |
 |-------------------|------------------------------------------------------|---------------|
 | BOT_TOKEN         | API-token of your telegram-bot                       | must be given |
-| BOT_ADMIN         | telegram-ID of the admin-user                        | must be given |
+| BOT_ADMIN_ID      | telegram-ID of the admin-user                        | must be given |
 | BOT_ALLOWED_USERS | comma-seperated list of users with access to the bot | None          |
 
 ## next steps

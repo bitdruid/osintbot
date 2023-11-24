@@ -4,6 +4,7 @@ from telegram.ext import MessageHandler, ConversationHandler
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 import os
+from pprint import pprint
 from __version__ import __version__
 
 class Environment:
@@ -122,6 +123,7 @@ async def request_whois(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return WHOIS
 
 import whois
+import stuff
 @restricted
 async def query_whois(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # if query_whois is called by request_whois, context.args is not None but update.message.text is None
@@ -136,24 +138,33 @@ async def query_whois(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 domain = update.message.text
         else:
             return ConversationHandler.END
-    if not whois.validate_domain(domain):
+    if not stuff.validate_domain(domain):
         await context.bot.send_message(chat_id=update.effective_chat.id, text="This is not a valid domain.")
         return ConversationHandler.END
     await context.bot.send_message(chat_id=update.effective_chat.id, text="WHOIS query for {}...".format(domain))
     domain_data = whois.run(domain)
     if domain_data not in [False, None]:
-        domain_whois = domain_data["whois"]
-        domain_stats = domain_data["stats"]
-        result_stats = ""
-        # format stats for markdown code span
-        for key, value in domain_stats.items():
-            result_stats += f"{key}: `{value}`\n"
-        result_message = "WHOIS results for {}:".format(domain) + "\n\n" + result_stats
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=result_message, parse_mode=constants.ParseMode.MARKDOWN)
-        document = create_document("whois" + "_" + domain + ".txt", domain_whois)
-        await context.bot.send_document(chat_id=update.effective_chat.id, document=document)
+        if "stats" in domain_data:
+            domain_stats = domain_data["stats"]
+            hosting_stats = ""
+            # format stats for markdown code span
+            for key, value in domain_stats.items():
+                hosting_stats += f"{key}: `{value}`\n"
+            hosting_message = "WHOIS hosting {}:".format(domain) + "\n\n" + hosting_stats
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=hosting_message, parse_mode=constants.ParseMode.MARKDOWN)
+        else:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="No stats available for this domain.")
+        if "whois" in domain_data:
+            domain_whois = domain_data["whois"]
+            document = create_document("whois" + "_" + domain + ".txt", domain_whois)
+            await context.bot.send_document(chat_id=update.effective_chat.id, document=document)
+        else:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="No WHOIS data available for this domain.")
     else:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="No WHOIS data available for this domain.")
+        failed_message = \
+            "No WHOIS data available for this input." + \
+            "Check if the domain is valid and does exist."
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=failed_message)
     return ConversationHandler.END
 
 
