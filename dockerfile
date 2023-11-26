@@ -1,12 +1,12 @@
-FROM python:3.12 AS whois
-RUN apt-get update && apt-get install whois
+FROM python:3.12-alpine AS whois
+RUN apk update && apk add whois
 
-FROM python:3.12 AS requirements
+FROM python:3.12-alpine AS requirements
 WORKDIR /app
 COPY requirements.txt /app
 RUN pip3 install -r requirements.txt
 
-FROM python:3.12
+FROM python:3.12-alpine
 WORKDIR /app
 COPY --from=whois /usr/bin/whois /usr/bin/whois
 COPY --from=requirements /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
