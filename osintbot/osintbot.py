@@ -9,16 +9,34 @@ from __version__ import __version__
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 
 bot = commands.Bot(command_prefix='/', intents=intents)
 bot.help_command = None
 modes = ['mention_message', 'direct_message', 'channel_message']
 
+document_path = "documents/"
+os.makedirs(document_path, exist_ok=True)
+
+async def initialize():
+    for guild in bot.guilds:
+        for channel in guild.channels:
+            if channel.name == "osint":
+                return
+        overwrites = {
+            guild.owner: discord.PermissionOverwrite(read_messages=True),
+            guild.me: discord.PermissionOverwrite(read_messages=True),
+            guild.default_role: discord.PermissionOverwrite(read_messages=False)
+        }
+        channel = await guild.create_text_channel('osint', overwrites=overwrites)
+        await channel.send("{}".format(guild.owner.mention) + "\n" + f"I'm {Environment().bot_name} and created this private channel for interaction. Configure permissions for this channel as you like.\nGet started with `/help` or mention `@{Environment().bot_name} help` in this channel.")
+
+
 def create_document(filename, content):
-    document = open(filename, "w")
+    document = open(document_path + filename, "w")
     document.write(content)
     document.close()
-    document = open(filename, "rb")
+    document = open(document_path + filename, "rb")
     return document
 
 def json_to_markdown_codeblock(json):
@@ -58,6 +76,14 @@ class Environment:
             "This bot was created by bitdruid.\n" + \
             "Current Version is: {}\n\n".format(__version__) + \
             "https://github.com/bitdruid/osintbot"
+
+# if bot joins a server or starts it checks for osint-channel and creates it if it does not exist
+@bot.event
+async def on_ready():
+    await initialize()
+@bot.event
+async def on_guild_join(guild):
+    await initialize()
 
 
 
@@ -181,11 +207,15 @@ async def prune(ctx):
             count_history += 1
         timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         caller = ctx.author
+        # purge messages
         await ctx.channel.purge()
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "Pruned {} messages from the osint-channel at `{}` by `{}`.".format(count_history, timestamp, caller))
+        # prune documents
+        amount_documents = len(os.listdir(document_path))
+        for file in os.listdir(document_path):
+            os.remove(document_path + file)
+        prune_message = await ctx.send("{}".format(ctx.author.mention) + "\n" + "Pruned history from osint-channel at `{}` by `{}`:\n".format(timestamp, caller) + "- messages: `{}`\n".format(count_history) + "- documents: `{}`".format(amount_documents))
         # pin message
-        async for message in ctx.channel.history(limit=1):
-            await message.pin()
+        await prune_message.pin()
     else:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "This command is only available in the osint-channel.")
 
