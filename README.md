@@ -22,7 +22,7 @@ docker run -d --name osintbot osintbot -e BOT_TOKEN=<token of bot> -e BOT_ADMIN_
 | BOT_ADMIN_ID      | telegram-ID of the admin-user                        | must be given |
 | BOT_ALLOWED_USERS | comma-seperated list of users with access to the bot | None          |
 | BOT_NAME          | name of the bot                                      | osintbot      |
-| BOT_CHANNEL_ID    | channel the bot will will create and post to         | osint         |
+| BOT_CHANNEL       | channel the bot will will create and post to         | osint         |
 
 ## next steps
 
