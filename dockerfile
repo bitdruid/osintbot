@@ -14,4 +14,6 @@ COPY osintbot/* /app/
 ENV BOT_TOKEN=
 ENV BOT_ADMIN_ID=
 ENV BOT_ALLOWED_USERS=
+ENV BOT_NAME=
+ENV BOT_CHANNEL=
 CMD ["python3", "osintbot.py"]
