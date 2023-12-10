@@ -18,20 +18,6 @@ modes = ['mention_message', 'direct_message', 'channel_message']
 document_path = "documents/"
 os.makedirs(document_path, exist_ok=True)
 
-async def initialize():
-    for guild in bot.guilds:
-        for channel in guild.channels:
-            if channel.name == "osint":
-                return
-        overwrites = {
-            guild.owner: discord.PermissionOverwrite(read_messages=True),
-            guild.me: discord.PermissionOverwrite(read_messages=True),
-            guild.default_role: discord.PermissionOverwrite(read_messages=False)
-        }
-        channel = await guild.create_text_channel('osint', overwrites=overwrites)
-        await channel.send("{}".format(guild.owner.mention) + "\n" + f"I'm {Environment().bot_name} and created this private channel for interaction. Configure permissions for this channel as you like.\nGet started with `/help` or mention `@{Environment().bot_name} help` in this channel.")
-
-
 def create_document(filename, content):
     document = open(document_path + filename, "w")
     document.write(content)
@@ -69,6 +55,7 @@ class Environment:
         self.bot_token = os.getenv('BOT_TOKEN') if os.getenv('BOT_TOKEN') else ValueError("BOT_TOKEN is not set")
         self.bot_admin_id = int(os.getenv('BOT_ADMIN_ID')) if os.getenv('BOT_ADMIN_ID') else 0
         self.bot_name = os.getenv('BOT_NAME') if os.getenv('BOT_NAME') else "osintbot"
+        self.bot_channel = os.getenv('BOT_CHANNEL') if os.getenv('BOT_CHANNEL') else Environment().bot_channel
         #self.bot_allowed_users = [self.bot_admin_id]
         #if os.getenv('BOT_ALLOWED_USERS') is not None:
             #self.bot_allowed_users += [int(user) for user in os.getenv('BOT_ALLOWED_USERS').split(",") if user.strip()]
@@ -76,6 +63,19 @@ class Environment:
             "This bot was created by bitdruid.\n" + \
             "Current Version is: {}\n\n".format(__version__) + \
             "https://github.com/bitdruid/osintbot"
+        
+async def initialize():
+    for guild in bot.guilds:
+        for channel in guild.channels:
+            if channel.name == Environment().bot_channel:
+                return
+        overwrites = {
+            guild.owner: discord.PermissionOverwrite(read_messages=True),
+            guild.me: discord.PermissionOverwrite(read_messages=True),
+            guild.default_role: discord.PermissionOverwrite(read_messages=False)
+        }
+        channel = await guild.create_text_channel('osint', overwrites=overwrites)
+        await channel.send("{}".format(guild.owner.mention) + "\n" + f"I'm {Environment().bot_name} and created this private channel for interaction. Configure permissions for this channel as you like.\nGet started with `/help` or mention `@{Environment().bot_name} help` in this channel.")
 
 # if bot joins a server or starts it checks for osint-channel and creates it if it does not exist
 @bot.event
@@ -201,7 +201,7 @@ async def report(ctx, input=None):
 
 @bot.command(name='prune', description='Prunes messages from the osint-channel')
 async def prune(ctx):
-    if ctx.channel.name == "osint":
+    if ctx.channel.name == Environment().bot_channel:
         count_history = 0
         async for message in ctx.channel.history(limit=None):
             count_history += 1
