@@ -27,6 +27,23 @@ def json_to_markdown_codeblock(json):
         markdown += f"**{key}:**```\n{value}\n```"
     return markdown
 
+async def output_text_result(ctx, input, result, key):
+    if key in result:
+        result_data = result[key]
+        result_message = f"{key.upper()} for {input}:\n" + json_to_markdown_codeblock(result_data)
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + result_message)
+    else:
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + f"No {key.upper()} information available for this input.")
+
+async def output_file_result(ctx, input, result, key):
+    if key in result:
+        result_data = result[key]
+        document = create_document(key + "_" + input + ".txt", result_data)
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + f"{key.upper()} data for {input}:", file=discord.File(document, filename=key + "_" + input + ".txt"))
+    else:
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + f"No {key.upper()} information available for this input.")
+
+
 class Environment:
     def __init__(self):
         if os.path.isfile('.env'):
@@ -49,9 +66,13 @@ class Environment:
 @bot.command(name=Environment().bot_name, aliases=['help', 'start', 'usage'], description='Shows help message')
 async def help(ctx):
     # send and mention
+    commands = {}
     commands_message = ""
     for command in bot.commands:
-        commands_message += "`{}` - {}\n".format(command.name, command.description)
+        commands[command.name] = f"`{command.name}` - {command.description}"
+    commands = dict(sorted(commands.items()))
+    for command in commands:
+        commands_message += commands[command] + "\n"
     await ctx.send("{}".format(ctx.author.mention) + \
         "\n\n" + \
         "__I can help you with:__" + \
@@ -68,31 +89,17 @@ import whois
 @bot.command(name='whois', description='Shows WHOIS information for a domain', )
 async def query_whois(ctx, domain=None):
     if not domain:
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/whois <domain>")
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/whois <ip/domain>")
         return
-    if not helper.validate_domain(domain):
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain name.")
+    if not helper.validate_domain(domain) and not helper.validate_ip(domain):
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
         return
-    domain_data = whois.request(domain)
-    if domain_data:
-        if "stats" in domain_data:
-            domain_stats = domain_data["stats"]
-            hosting_stats = ""
-            # format stats for markdown code span
-            hosting_stats = json_to_markdown_codeblock(domain_stats)
-            hosting_message = "WHOIS hosting {}:".format(domain) + "\n\n" + hosting_stats
-            await ctx.send("{}".format(ctx.author.mention) + "\n" + hosting_message)
-        else:
-            await ctx.send("{}".format(ctx.author.mention) + "\n" + "No stats available for this domain.")
-        if "whois" in domain_data:
-            domain_whois = domain_data["whois"]
-            document = create_document("whois" + "_" + domain + ".txt", domain_whois)
-            await ctx.send("{}".format(ctx.author.mention) + "\n" + "WHOIS data for {}:".format(domain), file=discord.File(document, filename="whois" + "_" + domain + ".txt"))
-        else:
-            await ctx.send("{}".format(ctx.author.mention) + "\n" + "No WHOIS data available for this domain.")
+    whois_data = whois.request(domain)
+    if whois_data:
+        await output_file_result(ctx, domain, whois_data, "whois")
     else:
         failed_message = \
-            "No WHOIS data available for this input." + \
+            "No WHOIS data available for this input. " + \
             "Check if the domain is valid and does exist."
         await ctx.send("{}".format(ctx.author.mention) + "\n" + failed_message)
 
@@ -102,24 +109,19 @@ async def query_whois(ctx, domain=None):
 
 import iplookup
 @bot.command(name='iplookup', description='Shows IP information for a domain or IP address')
-async def query_iplookup(ctx, ip=None):
-    if not ip:
+async def query_iplookup(ctx, input=None):
+    if not input:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/iplookup <ip/domain>")
         return
-    if not helper.validate_domain(ip) and not helper.validate_ip(ip):
+    if not helper.validate_domain(input) and not helper.validate_ip(input):
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
         return
-    iplookup_data = iplookup.request(ip)
+    iplookup_data = iplookup.request(input)
     if iplookup_data:
-        if "iplookup" in iplookup_data:
-            iplookup_entry = iplookup_data["iplookup"]
-            iplookup_message = "IPLOOKUP for {}:".format(ip) + "\n\n" + json_to_markdown_codeblock(iplookup_entry)
-            await ctx.send("{}".format(ctx.author.mention) + "\n" + iplookup_message)
-        else:
-            await ctx.send("{}".format(ctx.author.mention) + "\n" + "No IP information available for this input.")
+        await output_text_result(ctx, input, iplookup_data, "iplookup")
     else:
         failed_message = \
-            "No IP information available for this input." + \
+            "No IP information available for this input. " + \
             "Check if the domain or IP address is valid and does exist."
         await ctx.send("{}".format(ctx.author.mention) + "\n" + failed_message)
 
@@ -133,6 +135,39 @@ async def query_geoip(ctx, ip=None):
     if not ip:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/geoip <ip/domain>")
         return
+    
+    
+
+
+
+
+@bot.command(name='report', description='Gives you whois, iplookup and geoip information for a domain or IP address')
+async def report(ctx, input=None):
+    if not input:
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/report <ip/domain>")
+        return
+    if not helper.validate_domain(input) and not helper.validate_ip(input):
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
+        return
+    report_data = {}
+    whois_data = whois.request(input)
+    if "whois" in whois_data: 
+        document = create_document("whois" + "_" + input + ".txt", whois_data["whois"])
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + "WHOIS data for {}:".format(input), file=discord.File(document, filename="whois" + "_" + input + ".txt"))            
+    iplookup_data = iplookup.request(input)
+    if iplookup_data:
+        report_data["iplookup"] = iplookup_data["iplookup"]
+    geoip_data = geoip.request(input)
+    if geoip_data:
+        report_data["geoip"] = geoip_data["geoip"]
+    if report_data:
+        for key in report_data:
+            await output_text_result(ctx, input, report_data, key)
+    else:
+        failed_message = \
+            "No data available for this input. " + \
+            "Check if the domain or IP address is valid and does exist."
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + failed_message)
 
 
 

@@ -1,5 +1,18 @@
 import ipaddress
 import socket
+import requests
+
+def check_online_offline(domain):
+    """check if a domain is online or offline"""
+    try:
+        response_code = requests.get(domain).status_code
+        if response_code == 200:
+            return True
+        else:
+            return False
+    except:
+        return False
+    
     
 def validate_domain(domain):
     """validate if a domain is given"""
@@ -32,3 +45,11 @@ def domain_to_ip(domain):
         return ip
     except:
         return "0.0.0.0"
+    
+def ip_to_domain(ip):
+    """convert an ip to a domain or return dump domain"""
+    try:
+        domain = socket.gethostbyaddr(ip)[0]
+        return domain
+    except:
+        return False
