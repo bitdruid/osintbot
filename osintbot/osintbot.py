@@ -199,6 +199,24 @@ async def report(ctx, input=None):
 
 
 
+@bot.command(name='mailheader', description='Analyzes a provided mail header')
+async def mailheader(ctx, input=None):
+    if not input:
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/mailheader <mail header>")
+        return
+    mailheader_data = mailheader.request(input)
+    if mailheader_data:
+        await output_text_result(ctx, input, mailheader_data, "mailheader")
+    else:
+        failed_message = \
+            "Could not analyze or recognize this mail header. " + \
+            "Check if your file is a valid mail header."
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + failed_message)
+
+
+
+
+
 @bot.command(name='prune', description='Prunes messages from the osint-channel')
 async def prune(ctx):
     if ctx.channel.name == Environment().bot_channel:
