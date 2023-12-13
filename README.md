@@ -35,6 +35,9 @@ docker run -d --name osintbot osintbot -e BOT_TOKEN=<token of bot> -e BOT_ADMIN_
 
 - [ipinfo.io](https://ipinfo.io/)
 - [iplocation.net](https://iplocation.net/)
+- [ipapi.com](https://ip-api.com/)
+- [ipapi.co](https://ipapi.co/)
+- [freegeoip.live](https://freegeoip.live/)
 
 ### repositories
 

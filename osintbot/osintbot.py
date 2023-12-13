@@ -28,7 +28,12 @@ def create_document(filename, content):
 def json_to_markdown_codeblock(json):
     markdown = ""
     for key, value in json.items():
-        markdown += f"**{key}:**```\n{value}\n```"
+        if isinstance(value, dict): # check if value is a dict
+            markdown += f"**{key}:**\n"
+            for subkey, subvalue in value.items(): # iterate over subdict if exist
+                markdown += f"```\n{subkey}: {subvalue}\n```"
+        else:
+            markdown += f"**{key}:** `{value}`\n"
     return markdown
 
 async def output_text_result(ctx, input, result, key):
@@ -157,12 +162,22 @@ async def query_iplookup(ctx, input=None):
 
 import geoip
 @bot.command(name='geoip', description='Shows GeoIP information for a domain or IP address')
-async def query_geoip(ctx, ip=None):
-    if not ip:
+async def query_geoip(ctx, input=None):
+    if not input:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/geoip <ip/domain>")
         return
-    
-    
+    if not helper.validate_domain(input) and not helper.validate_ip(input):
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
+        return
+    geoip_data = geoip.request(input)
+    if geoip_data:
+        await output_text_result(ctx, input, geoip_data, "geoip")
+    else:
+        failed_message = \
+            "No GeoIP information available for this input. " + \
+            "Check if the domain or IP address is valid and does exist."
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + failed_message)
+
 
 
 
