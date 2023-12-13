@@ -79,7 +79,23 @@ def request(input):
     return result
 
 
-
+def json_to_markdown_codeblock(json):
+    markdown = ""
+    for key, value in json.items():
+        if isinstance(value, dict):
+            markdown += f"**{key}:**\n"
+            for subkey, subvalue in value.items():
+                if isinstance(subvalue, dict):
+                    markdown += f"{subkey}:\n"
+                    markdown += "```\n"
+                    for subsubkey, subsubvalue in subvalue.items():
+                        markdown += f"{subsubkey}: {subsubvalue}\n"
+                    markdown += "```\n"
+                else:
+                    markdown += f"**{subkey}:**```\n{subvalue}\n```\n"
+        else:
+            markdown += f"**{key}:**```\n{value}\n```\n"
+    return markdown
 
 
 if __name__ == "__main__":
@@ -94,7 +110,8 @@ if __name__ == "__main__":
         input = sys.argv[1]
         response = request(input)
         if response:
-            pprint(response)
+            json = json_to_markdown_codeblock(response)
+            pprint(json)
         else:
             print("No data available.")
 

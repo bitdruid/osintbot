@@ -28,7 +28,16 @@ def create_document(filename, content):
 def json_to_markdown_codeblock(json):
     markdown = ""
     for key, value in json.items():
-        markdown += f"**{key}:**```\n{value}\n```"
+        markdown += f"**{key}:**\n"
+        if isinstance(value, dict):
+            markdown += "```\n"
+            for subkey, subvalue in value.items():
+                markdown += f"{subkey}: {subvalue}\n"
+            markdown += "```\n"
+        else:
+            markdown += "```\n"
+            markdown += f"{value}\n"
+            markdown += "```\n"
     return markdown
 
 async def output_text_result(ctx, input, result, key):
