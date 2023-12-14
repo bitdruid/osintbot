@@ -67,7 +67,6 @@ async def output_file_result(ctx, input, result, key):
     else:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + f"No {key.upper()} information available for this input.")
 
-
 class Environment:
     def __init__(self):
         if os.path.isfile('.env'):
@@ -75,7 +74,7 @@ class Environment:
         self.bot_token = os.getenv('BOT_TOKEN') if os.getenv('BOT_TOKEN') else ValueError("BOT_TOKEN is not set")
         self.bot_admin_id = int(os.getenv('BOT_ADMIN_ID')) if os.getenv('BOT_ADMIN_ID') else 0
         self.bot_name = os.getenv('BOT_NAME') if os.getenv('BOT_NAME') else "osintbot"
-        self.bot_channel = os.getenv('BOT_CHANNEL') if os.getenv('BOT_CHANNEL') else Environment().bot_channel
+        self.bot_channel = os.getenv('BOT_CHANNEL') if os.getenv('BOT_CHANNEL') else "osint"
         #self.bot_allowed_users = [self.bot_admin_id]
         #if os.getenv('BOT_ALLOWED_USERS') is not None:
             #self.bot_allowed_users += [int(user) for user in os.getenv('BOT_ALLOWED_USERS').split(",") if user.strip()]
@@ -83,6 +82,12 @@ class Environment:
             "This bot was created by bitdruid.\n" + \
             "Current Version is: {}\n\n".format(__version__) + \
             "https://github.com/bitdruid/osintbot"
+       
+async def check_cooldown(ctx, input):
+    """Check if command is on cooldown (needed for mentioned commands)"""
+    if ctx.command.name == input and ctx.command.get_cooldown_retry_after(ctx) > 0:
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + "This command is on cooldown to prevent flooding API by bot-IP. Try again in {:.2f}s.".format(ctx.command.get_cooldown_retry_after(ctx)))
+        return
         
 async def initialize():
     for guild in bot.guilds:
@@ -105,7 +110,7 @@ async def initialize():
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandOnCooldown):
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "This command is on cooldown. Try again in {:.2f}s.".format(error.retry_after))
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + "This command is on cooldown to prevent flooding API by bot-IP. Try again in {:.2f}s.".format(error.retry_after))
     else:
         raise error
 
@@ -174,6 +179,7 @@ import iplookup
 @commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='iplookup', description='Shows IP information for a domain or IP address')
 async def query_iplookup(ctx, input=None):
+    check_cooldown(ctx, input)
     if not input:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/iplookup <ip/domain>")
         return
@@ -194,8 +200,10 @@ async def query_iplookup(ctx, input=None):
 
 
 import geoip
+@commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='geoip', description='Shows GeoIP information for a domain or IP address')
 async def query_geoip(ctx, input=None):
+    check_cooldown(ctx, input)
     if not input:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/geoip <ip/domain>")
         return
@@ -215,8 +223,10 @@ async def query_geoip(ctx, input=None):
 
 
 
+@commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='report', description='Gives you whois, iplookup and geoip information for a domain or IP address')
 async def report(ctx, input=None):
+    check_cooldown(ctx, input)
     if not input:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/report <ip/domain>")
         return
