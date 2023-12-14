@@ -1,6 +1,7 @@
 ![Version](https://img.shields.io/badge/Version-0.1.3-blue.svg)
 ![Release](https://img.shields.io/badge/Release-Alpha-red.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+[![Docker Pulls](https://img.shields.io/docker/pulls/bitdruid/osintbot.svg)](https://hub.docker.com/r/bitdruid/osintbot/)
 
 # osintbot
 Playing around with possibilities of an osint-bot for discord (telegram tested in other branch).
@@ -9,23 +10,25 @@ Playing around with possibilities of an osint-bot for discord (telegram tested i
 
 ### Docker
 
+Populate .env with the table below or just pull the image from dockerhub (click on the badge above)
+
 ```
 docker build -t osintbot .
-docker run -d --name osintbot osintbot -e BOT_TOKEN=<token of bot> -e BOT_ADMIN_ID=<admin id> -e BOT_NAME=<name of bot>
+docker run -d --name osintbot osintbot --env-file .env
 ```
+or docker-compose
+```
+docker-compose up -d
+```
+
 
 ### Environmental Variables
 
 | env               | description                                          | default       |
 |-------------------|------------------------------------------------------|---------------|
-| BOT_TOKEN         | API-token of your telegram-bot                       | must be given |
+| BOT_TOKEN         | API-token of the bot                                 | must be given |
 | BOT_NAME          | name of the bot                                      | osintbot      |
-| BOT_CHANNEL_ID    | channel the bot will will create and post to         | osint         |
-
-## next steps
-
-- [ ] admin can manage allowed users via bot chat
-- [ ] more osint-modules (e.g. geoip)
+| BOT_CHANNEL       | channel the bot will will create and post to         | osint         |
 
 ## used
 

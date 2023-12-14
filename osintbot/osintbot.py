@@ -18,6 +18,22 @@ modes = ['mention_message', 'direct_message', 'channel_message']
 document_path = "documents/"
 os.makedirs(document_path, exist_ok=True)
 
+class Environment:
+    def __init__(self):
+        if os.path.isfile('.env'):
+            load_dotenv()
+        self.bot_token = os.getenv('BOT_TOKEN') if os.getenv('BOT_TOKEN') else ValueError("BOT_TOKEN is not set")
+        self.bot_name = os.getenv('BOT_NAME') if os.getenv('BOT_NAME') else "osintbot"
+        self.bot_channel = os.getenv('BOT_CHANNEL') if os.getenv('BOT_CHANNEL') else "osint"
+        self.about_message = \
+            "This bot was created by bitdruid.\n" + \
+            "Current Version is: {}\n\n".format(__version__) + \
+            "https://github.com/bitdruid/osintbot"
+
+
+
+
+
 def create_document(filename, content):
     document = open(document_path + filename, "w")
     document.write(content)
@@ -66,30 +82,9 @@ async def output_file_result(ctx, input, result, key):
         await ctx.send("{}".format(ctx.author.mention) + "\n" + f"{key.upper()} data for {input}:", file=discord.File(document, filename=key + "_" + input + ".txt"))
     else:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + f"No {key.upper()} information available for this input.")
-
-class Environment:
-    def __init__(self):
-        if os.path.isfile('.env'):
-            load_dotenv()
-        self.bot_token = os.getenv('BOT_TOKEN') if os.getenv('BOT_TOKEN') else ValueError("BOT_TOKEN is not set")
-        self.bot_admin_id = int(os.getenv('BOT_ADMIN_ID')) if os.getenv('BOT_ADMIN_ID') else 0
-        self.bot_name = os.getenv('BOT_NAME') if os.getenv('BOT_NAME') else "osintbot"
-        self.bot_channel = os.getenv('BOT_CHANNEL') if os.getenv('BOT_CHANNEL') else "osint"
-        #self.bot_allowed_users = [self.bot_admin_id]
-        #if os.getenv('BOT_ALLOWED_USERS') is not None:
-            #self.bot_allowed_users += [int(user) for user in os.getenv('BOT_ALLOWED_USERS').split(",") if user.strip()]
-        self.about_message = \
-            "This bot was created by bitdruid.\n" + \
-            "Current Version is: {}\n\n".format(__version__) + \
-            "https://github.com/bitdruid/osintbot"
-       
-async def check_cooldown(ctx, input):
-    """Check if command is on cooldown (needed for mentioned commands)"""
-    if ctx.command.name == input and ctx.command.get_cooldown_retry_after(ctx) > 0:
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "This command is on cooldown to prevent flooding API by bot-IP. Try again in {:.2f}s.".format(ctx.command.get_cooldown_retry_after(ctx)))
-        return
-        
+               
 async def initialize():
+    # check if bot-channel exists and create it if not
     for guild in bot.guilds:
         for channel in guild.channels:
             if channel.name == Environment().bot_channel:
@@ -99,7 +94,7 @@ async def initialize():
             guild.me: discord.PermissionOverwrite(read_messages=True),
             guild.default_role: discord.PermissionOverwrite(read_messages=False)
         }
-        channel = await guild.create_text_channel('osint', overwrites=overwrites)
+        channel = await guild.create_text_channel(Environment().bot_channel, overwrites=overwrites)
         await channel.send("{}".format(guild.owner.mention) + "\n" + f"I'm {Environment().bot_name} and created this private channel for interaction. Configure permissions for this channel as you like.\nGet started with `/help` or mention `@{Environment().bot_name} help` in this channel.")
 
 
@@ -131,7 +126,7 @@ async def on_guild_join(guild):
 
 
 
-@bot.command(name=Environment().bot_name, aliases=['help', 'start', 'usage'], description='Shows help message')
+@bot.command(name='commands', aliases=['help', 'start', 'usage'], description='Shows help message')
 async def help(ctx):
     # send and mention
     commands = {}
@@ -143,7 +138,7 @@ async def help(ctx):
         commands_message += commands[command] + "\n"
     await ctx.send("{}".format(ctx.author.mention) + \
         "\n\n" + \
-        "__I can help you with:__" + \
+        "__I am {} and i can help you with this:__".format(Environment().bot_name) + \
         "\n\n" + \
         commands_message + \
         "\n" + \
@@ -179,7 +174,6 @@ import iplookup
 @commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='iplookup', description='Shows IP information for a domain or IP address')
 async def query_iplookup(ctx, input=None):
-    check_cooldown(ctx, input)
     if not input:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/iplookup <ip/domain>")
         return
@@ -203,7 +197,6 @@ import geoip
 @commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='geoip', description='Shows GeoIP information for a domain or IP address')
 async def query_geoip(ctx, input=None):
-    check_cooldown(ctx, input)
     if not input:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/geoip <ip/domain>")
         return
@@ -211,7 +204,7 @@ async def query_geoip(ctx, input=None):
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
         return
     geoip_data = geoip.request(input)
-    if geoip_data:
+    if geoip_data["geoip"]:
         await output_text_result(ctx, input, geoip_data, "geoip")
     else:
         failed_message = \
@@ -226,7 +219,6 @@ async def query_geoip(ctx, input=None):
 @commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='report', description='Gives you whois, iplookup and geoip information for a domain or IP address')
 async def report(ctx, input=None):
-    check_cooldown(ctx, input)
     if not input:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/report <ip/domain>")
         return
@@ -317,8 +309,13 @@ async def about(ctx):
 # you can run commands by mentioning the bot
 @bot.event
 async def on_message(message):
+
+    # ignore messages from bot and other channels then bot-channel
     if message.author == bot.user:
         return
+    if message.channel.name != Environment().bot_channel:
+        return
+    
     if bot.user.mentioned_in(message):
         # remove mention from message
         content = message.content
@@ -333,7 +330,12 @@ async def on_message(message):
             if command:
                 # invoke command = run command
                 ctx = await bot.get_context(message)
-                await ctx.invoke(command, *command_arguments)
+                bucket = command._buckets.get_bucket(ctx)
+                retry_after = bucket.update_rate_limit()
+                if retry_after:
+                    await ctx.send(f"{ctx.author.mention} This command is on cooldown. Try again in {retry_after:.2f} seconds.")
+                else:
+                    await ctx.invoke(command, *command_arguments)
             else:
                 await message.channel.send("{}".format(message.author.mention) + "\n" + "Unknown command.")
         else:
