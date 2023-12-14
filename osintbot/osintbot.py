@@ -26,19 +26,30 @@ def create_document(filename, content):
     return document
 
 def json_to_markdown_codeblock(json):
+    heading = ""
+    url = ""
     markdown = ""
+    message = ""
     for key, value in json.items():
-        markdown += f"**{key}:**\n"
+        heading = f"**{key}:**\n"
         if isinstance(value, dict):
             markdown += "```\n"
             for subkey, subvalue in value.items():
+                if "url" in subkey.lower(): # if url is in key, create clickable link and skip url in markdown
+                    url = "<{}>\n".format(subvalue)
+                    continue
                 markdown += f"{subkey}: {subvalue}\n"
             markdown += "```\n"
         else:
+            if "url" in key.lower(): # if url is in key, create clickable link and skip url in markdown
+                url = "<{}>\n".format(subvalue)
+                continue
             markdown += "```\n"
             markdown += f"{value}\n"
             markdown += "```\n"
-    return markdown
+        message += heading + url + markdown
+        heading, url, markdown = "", "", ""
+    return message + "\n"
 
 async def output_text_result(ctx, input, result, key):
     if key in result:
@@ -85,6 +96,23 @@ async def initialize():
         }
         channel = await guild.create_text_channel('osint', overwrites=overwrites)
         await channel.send("{}".format(guild.owner.mention) + "\n" + f"I'm {Environment().bot_name} and created this private channel for interaction. Configure permissions for this channel as you like.\nGet started with `/help` or mention `@{Environment().bot_name} help` in this channel.")
+
+
+
+
+
+# timeout a command for guild for 10 seconds
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + "This command is on cooldown. Try again in {:.2f}s.".format(error.retry_after))
+    else:
+        raise error
+
+
+
+
+
 
 # if bot joins a server or starts it checks for osint-channel and creates it if it does not exist
 @bot.event
@@ -143,6 +171,7 @@ async def query_whois(ctx, domain=None):
 
 
 import iplookup
+@commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='iplookup', description='Shows IP information for a domain or IP address')
 async def query_iplookup(ctx, input=None):
     if not input:

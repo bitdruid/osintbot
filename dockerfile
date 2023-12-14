@@ -11,7 +11,4 @@ WORKDIR /app
 COPY --from=whois /usr/bin/whois /usr/bin/whois
 COPY --from=requirements /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY osintbot/* /app/
-ENV BOT_TOKEN=
-ENV BOT_ADMIN_ID=
-ENV BOT_ALLOWED_USERS=
 CMD ["python3", "osintbot.py"]

@@ -58,7 +58,7 @@ def filter_response(json_response):
 
 
 
-def add_opentopomap_url(json_response):
+def convert_coords_to_url(json_response):
     """Add a link to opentopomap by latitude and longitude for each response."""
     topo_url = "https://opentopomap.org/#marker=7/{latitude}/{longitude}"
     for api in json_response:
@@ -89,7 +89,7 @@ def request(input):
         if api_data:
             response[api] = api_data
     response = filter_response(response)
-    response = add_opentopomap_url(response)
+    response = convert_coords_to_url(response)
     result["geoip"] = response
     return result
 

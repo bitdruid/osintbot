@@ -23,7 +23,6 @@ def iplookup(ip, domain):
     registrar = whois.whois_registrar(domain)
     if registrar:
         ip_json["Domain Registrar"] = registrar
-    ip_json["Data Source"] = "According to API data from ipinfo.io"
     return ip_json
 
 def request(input):
