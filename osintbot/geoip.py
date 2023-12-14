@@ -40,13 +40,11 @@ def filter_response(json_response):
         "lon": "longitude",
     }
     filtered_response = {}
-    for api in json_response:
-        filtered_response[api] = {}
-        for key in json_response[api]:
-            if key in valid_keys:
-                filtered_response[api][key] = json_response[api][key]
-            elif key in rename_keys:
-                filtered_response[api][rename_keys[key]] = json_response[api][key]
+    for value in json_response:
+        if value in valid_keys:
+            filtered_response[value] = json_response[value]
+        elif value in rename_keys:
+            filtered_response[rename_keys[value]] = json_response[value]
     return filtered_response
 
 
@@ -56,13 +54,9 @@ def filter_response(json_response):
 def convert_coords_to_url(json_response):
     """Add a link to opentopomap by latitude and longitude for each response."""
     topo_url = "https://opentopomap.org/#marker=7/{latitude}/{longitude}"
-    for api in json_response:
-        try:
-            json_response[api]["url"] = topo_url.format(latitude=json_response[api]["latitude"], longitude=json_response[api]["longitude"])
-            del json_response[api]["latitude"]
-            del json_response[api]["longitude"]
-        except:
-            pass
+    json_response["url"] = topo_url.format(latitude=json_response["latitude"], longitude=json_response["longitude"])
+    del json_response["latitude"]
+    del json_response["longitude"]
     return json_response
 
 
@@ -83,10 +77,10 @@ def request(input):
     result = {}
     for api in api_dict:
         api_data = query_api(api, ip)
+        api_data = filter_response(api_data)
+        api_data = convert_coords_to_url(api_data)
         if "country" in api_data:
             response[api] = api_data
-    response = filter_response(response)
-    response = convert_coords_to_url(response)
     result["geoip"] = response
     return result
 
