@@ -58,6 +58,20 @@ def filter_response(json_response):
 
 
 
+def add_opentopomap_url(json_response):
+    """Add a link to opentopomap by latitude and longitude for each response."""
+    topo_url = "https://opentopomap.org/#marker=7/{latitude}/{longitude}"
+    for api in json_response:
+        try:
+            json_response[api]["url"] = topo_url.format(latitude=json_response[api]["latitude"], longitude=json_response[api]["longitude"])
+        except:
+            pass
+    return json_response
+
+
+
+
+
 def request(input):
     """Request data from all APIs, build json response and hand over."""
 
@@ -75,6 +89,7 @@ def request(input):
         if api_data:
             response[api] = api_data
     response = filter_response(response)
+    response = add_opentopomap_url(response)
     result["geoip"] = response
     return result
 
@@ -94,8 +109,7 @@ if __name__ == "__main__":
         input = sys.argv[1]
         response = request(input)
         if response:
-            json = json_to_markdown_codeblock(response)
-            pprint(json)
+            pprint(response)
         else:
             print("No data available.")
 
