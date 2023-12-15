@@ -54,9 +54,12 @@ def filter_response(json_response):
 def convert_coords_to_url(json_response):
     """Add a link to opentopomap by latitude and longitude for each response."""
     topo_url = "https://opentopomap.org/#marker=7/{latitude}/{longitude}"
-    json_response["url"] = topo_url.format(latitude=json_response["latitude"], longitude=json_response["longitude"])
+    topo_url = topo_url.format(latitude=json_response["latitude"], longitude=json_response["longitude"])
     del json_response["latitude"]
     del json_response["longitude"]
+    # sort keys alphabetically and append url
+    json_response = {key: json_response[key] for key in sorted(json_response.keys())}
+    json_response["url"] = topo_url
     return json_response
 
 

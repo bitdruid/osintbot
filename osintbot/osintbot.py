@@ -330,8 +330,11 @@ async def on_message(message):
             if command:
                 # invoke command = run command
                 ctx = await bot.get_context(message)
-                bucket = command._buckets.get_bucket(ctx)
-                retry_after = bucket.update_rate_limit()
+                try:
+                    bucket = command._buckets.get_bucket(ctx)
+                    retry_after = bucket.update_rate_limit()
+                except:
+                    retry_after = False
                 if retry_after:
                     await ctx.send(f"{ctx.author.mention} This command is on cooldown. Try again in {retry_after:.2f} seconds.")
                 else:
