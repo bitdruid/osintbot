@@ -28,7 +28,7 @@ docker-compose up -d
 |-------------------|------------------------------------------------------|---------------|
 | BOT_TOKEN         | API-token of the bot                                 | must be given |
 | BOT_NAME          | name of the bot                                      | osintbot      |
-| BOT_CHANNEL       | channel the bot will will create and post to         | osint         |
+| BOT_CHANNEL       | channel the bot will create and post to              | osint         |
 
 ## used
 
