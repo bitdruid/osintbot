@@ -70,6 +70,7 @@ def get_primary(input: str) -> tuple:
     - bool: False, False if no domain or ip is given
 
     """
+    print(f"get_primary({input})")
     if validate_domain(input):
         return input, domain_to_ip(input)
     elif validate_ip(input):

@@ -27,15 +27,11 @@ def iplookup(ip, domain):
 
 def request(input):
     """Return iplookup data."""
+    domain, ip = helper.get_primary(input)
     response = {}
-    if helper.validate_domain(input):
-        ip = helper.domain_to_ip(input)
-        domain = input
-    if helper.validate_ip(input):
-        ip = input
-        domain = helper.ip_to_domain(input)
     iplookup_data = iplookup(ip, domain)
-    if "ipv4" in iplookup_data:
+    print(iplookup_data)
+    if "primary ipv4" in iplookup_data:
         response["iplookup"] = iplookup_data
         return response
     else:
