@@ -53,3 +53,22 @@ def ip_to_domain(ip):
         return domain
     except:
         return False
+    
+def get_primary(input: str) -> tuple:
+    """
+    Check if a domain is online or offline.
+
+    Parameters:
+    - domain (str): The domain to check.
+
+    Returns:
+    - tuple: [0] domain, [1] ip
+    - bool: False, False if no domain or ip is given
+
+    """
+    if validate_domain(input):
+        return input, domain_to_ip(input)
+    elif validate_ip(input):
+        return ip_to_domain(input), input
+    else:
+        return False, False

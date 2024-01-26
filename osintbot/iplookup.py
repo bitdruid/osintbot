@@ -6,9 +6,9 @@ import whois
 def iplookup(ip, domain):
     """Query on ipinfo and return result for asn, isp, country."""
     ip_json = {}
-    ip_json["ipv4"] = ip
+    ip_json["primary ipv4"] = ip
     try:
-        ip_json["ipv6"] = socket.getaddrinfo(ip, None, socket.AF_INET6)[0][4][0]
+        ip_json["primary ipv6"] = socket.getaddrinfo(ip, None, socket.AF_INET6)[0][4][0]
     except:
         pass
     api_data = requests.get("http://ipinfo.io/" + ip + "/json")
