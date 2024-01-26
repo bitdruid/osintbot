@@ -38,17 +38,21 @@ def validate_ip(ip):
     except:
         return False
     
-def domain_to_ip(domain):
-    """convert a domain to an ip or return dump ip"""
+import socket
+
+def domain_to_ip(domain: str) -> str:
     try:
+        if validate_ip(domain):
+            return domain
         ip = socket.gethostbyname(domain)
         return ip
     except:
-        return "0.0.0.0"
+        return False
     
-def ip_to_domain(ip):
-    """convert an ip to a domain or return dump domain"""
+def ip_to_domain(ip: str) -> str:
     try:
+        if validate_domain(ip):
+            return ip
         domain = socket.gethostbyaddr(ip)[0]
         return domain
     except:
@@ -56,7 +60,7 @@ def ip_to_domain(ip):
     
 def get_primary(input: str) -> tuple:
     """
-    Check if a domain is online or offline.
+    Returns the primary domain and ip for a given domain or ip.
 
     Parameters:
     - domain (str): The domain to check.

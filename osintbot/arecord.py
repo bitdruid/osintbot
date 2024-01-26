@@ -1,18 +1,35 @@
-import socket
 import helper
+import dns.resolver
 
-def request(input):
+def request(input: str) -> list:
     """Returns a list of A records for a domain."""
-    domain, ip = helper.get_primary(input)
+    domain = helper.ip_to_domain(input)
+    
     try:
-        a_records = socket.gethostbyname_ex(domain)[2]
-        return a_records
-    except:
-        return False
+        resolver = dns.resolver.Resolver()
+        resolver.nameservers = ['8.8.8.8', '1.1.1.1', '9.9.9.9']
+        a_records = resolver.resolve(domain, "A")
+        a_records = [record.to_text() for record in a_records]
+    except dns.resolver.NoAnswer:
+        a_records = []
+    except dns.resolver.NXDOMAIN:
+        a_records = []
+
+    try:
+        aaaa_records = resolver.resolve(domain, "AAAA")
+        aaaa_records = [record.to_text() for record in aaaa_records]
+    except dns.resolver.NoAnswer:
+        aaaa_records = []
+    except dns.resolver.NXDOMAIN:
+        aaaa_records = []
+
+    records = a_records + aaaa_records
+    return records
 
 if __name__ == "__main__":
     from pprint import pprint
     import sys
+    script_name = sys.argv[0]
     if len(sys.argv) > 1:
         input = sys.argv[1]
         response = request(input)
@@ -21,4 +38,4 @@ if __name__ == "__main__":
         else:
             print("No data available.")
     else:
-        print("Usage: python3 arecords.py <domain/ip>")
+        print(f"Usage: python3 {script_name} <domain/ip>")
