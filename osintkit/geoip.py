@@ -1,5 +1,5 @@
 import requests
-import helper as helper
+import osintkit.helper as helper
 
 api_dict = {
     "ipwho.is": "http://ipwho.is/{ip}?output=json",

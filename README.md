@@ -49,7 +49,7 @@ docker-compose up -d
 create a virtualenv and install the requirements
 
 ```
-bash dev/build_venv.sh
+bash dev/venv_create.sh
 ```
 
 create file with environment variables in project root

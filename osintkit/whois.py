@@ -1,5 +1,5 @@
 import os
-import helper as helper
+import osintkit.helper as helper
             
 def whois(domain):
     """whois ip/domain"""

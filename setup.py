@@ -1,10 +1,10 @@
 from setuptools import setup, find_packages
 
-from __version__ import __version__
+from osintkit.__version__ import __version__
 
 import os
 scriptpath = os.path.dirname(os.path.realpath(__file__))
-with open(os.path.join(scriptpath, 'requirements.txt')) as f:
+with open(os.path.join(scriptpath + "/osintkit", 'requirements.txt')) as f:
     install_requires = f.read().splitlines()
 
 setup(
@@ -14,7 +14,7 @@ setup(
     install_requires=install_requires,
     entry_points={
         "console_scripts": [
-            "osintkit = osintkit.main:main"
+            "osintkit = osintkit.osintkit:main"
         ]
     },
     author='bitdruid',

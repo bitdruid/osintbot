@@ -1,7 +1,7 @@
 import requests
 import socket
-import helper as helper
-import whois as whois
+import osintkit.helper as helper
+import osintkit.whois as whois
 
 def iplookup(ip, domain):
     """Query on ipinfo and return result for asn, isp, country."""

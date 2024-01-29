@@ -5,7 +5,8 @@ FROM python:3.11-slim AS requirements
 WORKDIR /app
 COPY osintbot/requirements.txt /app
 RUN pip3 install --upgrade pip && pip3 install -r requirements.txt
-COPY osintkit /app
+COPY osintkit/ /app/osintkit/
+COPY setup.py /app
 RUN pip install .
 
 FROM python:3.11-slim

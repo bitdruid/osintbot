@@ -1,4 +1,4 @@
-import helper as helper
+import osintkit.helper as helper
 import dns.resolver
 import json
 
