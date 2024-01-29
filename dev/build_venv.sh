@@ -15,3 +15,6 @@ fi
 
 # install requirements
 "$TARGET_PATH/.venv/bin/python" -m pip install -r "$TARGET_PATH/osintbot/requirements.txt"
+
+# install osintkit
+"$TARGET_PATH/.venv/bin/python" -m pip install -e "$TARGET_PATH/osintkit"

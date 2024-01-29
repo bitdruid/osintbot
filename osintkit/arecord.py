@@ -1,8 +1,22 @@
-import helper
+import helper as helper
 import dns.resolver
 import json
 
+
+
+
+
 def request(input: str) -> str:
+    """
+    Performs a DNS query for A and AAAA records of a given domain.
+
+    Parameters:
+    - input (str): The domain or IP address to query.
+
+    Returns:
+    - str: A JSON string containing the A and AAAA records of the domain, or False if no records are found.
+
+    """
     domain = helper.ip_to_domain(input)
     response = {}
     result = {}
@@ -28,6 +42,10 @@ def request(input: str) -> str:
         return json.dumps(response)
     else:
         return False
+
+
+
+
 
 if __name__ == "__main__":
     from pprint import pprint

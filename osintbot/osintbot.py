@@ -3,7 +3,7 @@ from discord.ext import commands
 import os
 from datetime import datetime
 from dotenv import load_dotenv
-import helper as helper
+import osintkit.helper as helper
 from __version__ import __version__
 #from dotenv import load_dotenv
 
@@ -148,7 +148,7 @@ async def help(ctx):
 
 
 
-import whois
+import osintkit.whois as whois
 @bot.command(name='whois', description='Shows WHOIS information for a domain', )
 async def query_whois(ctx, domain=None):
     if not domain:
@@ -170,7 +170,7 @@ async def query_whois(ctx, domain=None):
 
 
 
-import iplookup
+import osintkit.iplookup as iplookup
 @commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='iplookup', description='Shows IP information for a domain or IP address')
 async def query_iplookup(ctx, input=None):
@@ -193,7 +193,7 @@ async def query_iplookup(ctx, input=None):
 
 
 
-import geoip
+import osintkit.geoip as geoip
 @commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='geoip', description='Shows GeoIP information for a domain or IP address')
 async def query_geoip(ctx, input=None):

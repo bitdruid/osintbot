@@ -1,5 +1,5 @@
 import os
-import helper
+import helper as helper
             
 def whois(domain):
     """whois ip/domain"""
