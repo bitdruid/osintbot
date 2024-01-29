@@ -4,10 +4,8 @@ from pathlib import Path
 
 from __version__ import __version__
 
-# Get the script path
 script_path = Path(__file__).resolve().parent
 
-# Read the requirements file using 'with' statement
 with open(script_path / "requirements.txt", encoding="utf-8") as f:
     install_requires = [str(requirement) for requirement in parse_requirements(f)]
 
