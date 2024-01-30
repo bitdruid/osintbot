@@ -67,11 +67,24 @@ def json_to_markdown_codeblock(json):
         heading, url, markdown = "", "", ""
     return message + "\n"
 
-async def output_text_result(ctx, input, result, key):
+async def output_text_result(ctx, input: str, result: str, key: str, dm: bool = False):
+    """
+    Sends the output text result to the specified context (channel or direct message).
+
+    Parameters:
+    - ctx (object): The context object representing the channel or user.
+    - input (str): The user input value.
+    - result (str): The query result data.
+    - key (str): The json key to access the specific result data.
+    - dm (bool, optional): Specifies whether to send the result as a direct message. Default is False.
+    """
     if key in result:
         result_data = result[key]
         result_message = f"{key.upper()} for {input}:\n" + json_to_markdown_codeblock(result_data)
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + result_message)
+        if dm:
+            await ctx.author.send("{}".format(ctx.author.mention) + "\n" + result_message)
+        else:
+            await ctx.send("{}".format(ctx.author.mention) + "\n" + result_message)
     else:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + f"No {key.upper()} information available for this input.")
 
@@ -82,7 +95,7 @@ async def output_file_result(ctx, input, result, key):
         await ctx.send("{}".format(ctx.author.mention) + "\n" + f"{key.upper()} data for {input}:", file=discord.File(document, filename=key + "_" + input + ".txt"))
     else:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + f"No {key.upper()} information available for this input.")
-               
+     
 async def initialize():
     # check if bot-channel exists and create it if not
     for guild in bot.guilds:
@@ -238,7 +251,7 @@ async def report(ctx, input=None):
         report_data["geoip"] = geoip_data["geoip"]
     if report_data:
         for key in report_data:
-            await output_text_result(ctx, input, report_data, key)
+            await output_text_result(ctx, input, report_data, key, dm=True)
     else:
         failed_message = \
             "No data available for this input. " + \
@@ -287,6 +300,23 @@ async def prune(ctx):
     else:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "This command is only available in the osint-channel.")
 
+
+
+
+
+# @bot.command(name='config', description='Configure bot settings for you and your server')
+# async def config(ctx, mode=None, value=None):
+#     if ctx.channel.name == Environment().bot_channel:
+#         if not mode:
+#             await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/config <mode> <value>")
+#             return
+#         if not value:
+#             await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/config <mode> <value>")
+#             return
+#         if mode not in modes:
+#             await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid mode. Available modes are: {}".format(modes))
+#             return
+        
 
 
 

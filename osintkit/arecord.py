@@ -17,17 +17,19 @@ def request(input: str) -> str:
 
     """
     domain = helper.ip_to_domain(input)
+    arecords = []
     response = {}
     result = {}
+
+    resolver = dns.resolver.Resolver()
+    resolver.nameservers = ['8.8.8.8', '1.1.1.1', '9.9.9.9']
     
     try:
-        resolver = dns.resolver.Resolver()
-        resolver.nameservers = ['8.8.8.8', '1.1.1.1', '9.9.9.9']
-        a_records = resolver.resolve(domain, "A")
-        a_records = [str(record) for record in a_records]
-        response["A"] = a_records
+        arecords = resolver.resolve(domain, "A")
+        arecords = [str(record) for record in arecords]
+        response["A"] = arecords
     except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
-        a_records = []
+        arecords = []
 
     try:
         aaaa_records = resolver.resolve(domain, "AAAA")

@@ -30,7 +30,6 @@ def request(input):
     domain, ip = helper.get_primary(input)
     response = {}
     iplookup_data = iplookup(ip, domain)
-    print(iplookup_data)
     if "primary ipv4" in iplookup_data:
         response["iplookup"] = iplookup_data
         return response
