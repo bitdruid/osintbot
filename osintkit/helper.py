@@ -30,6 +30,7 @@ def validate_domain(domain):
     else:
         return False
     
+    
 def validate_ip(ip):
     """validate if an ip is given"""
     try:
@@ -37,8 +38,24 @@ def validate_ip(ip):
         return True
     except:
         return False
-    
-import socket
+
+
+def validate_primary(input: str) -> bool:
+    """
+    Validate if a given input is a domain or ip address.
+
+    Parameters:
+    - input (str): The domain or ip address to validate.
+
+    Returns:
+    - bool: True if the input is a domain or ip address, False if not.
+
+    """
+    if validate_domain(input) or validate_ip(input):
+        return True
+    else:
+        return False  
+
 
 def domain_to_ip(domain: str) -> str:
     try:
@@ -49,6 +66,7 @@ def domain_to_ip(domain: str) -> str:
     except:
         return False
     
+    
 def ip_to_domain(ip: str) -> str:
     try:
         if validate_domain(ip):
@@ -58,6 +76,7 @@ def ip_to_domain(ip: str) -> str:
     except:
         return False
     
+
 def get_primary(input: str) -> tuple:
     """
     Returns the primary domain and ip for a given domain or ip.
@@ -72,8 +91,12 @@ def get_primary(input: str) -> tuple:
     """
     print(f"get_primary({input})")
     if validate_domain(input):
-        return input, domain_to_ip(input)
+        ip = domain_to_ip(input)
+        if ip:
+            return input, ip
     elif validate_ip(input):
-        return ip_to_domain(input), input
+        domain = ip_to_domain(input)
+        if domain:
+            return domain, input
     else:
         return False, False

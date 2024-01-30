@@ -1,8 +1,8 @@
 import argparse
-import whois as whois
-import geoip as geoip
-import iplookup as iplookup
-import arecord as arecord
+import osintkit.whois as whois
+import osintkit.geoip as geoip
+import osintkit.iplookup as iplookup
+import osintkit.arecord as arecord
 from pprint import pprint
 
 def main():

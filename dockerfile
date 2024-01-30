@@ -3,8 +3,8 @@ RUN apt -qq update && apt -qq install -y whois
 
 FROM python:3.11-slim AS requirements
 WORKDIR /app
-COPY osintbot/requirements.txt /app
-RUN pip3 install --upgrade pip && pip3 install -r requirements.txt
+COPY requirements-bot.txt /app
+RUN pip3 install --upgrade pip && pip3 install -r requirements-bot.txt
 COPY osintkit/ /app/osintkit/
 COPY setup.py /app
 RUN pip install .
