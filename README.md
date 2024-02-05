@@ -6,6 +6,18 @@
 # osintbot
 Playing around with possibilities of an osint-bot for discord (telegram tested in other branch).
 
+## capabilities
+
+- [x] whois
+- [x] arecord
+- [x] iplookup
+- [x] geoip
+
+## planned
+
+- [ ] portscan
+- [ ] mail analysis
+
 ## Installation
 
 ### Docker
@@ -37,7 +49,7 @@ Optional volumes to persist data:
 | volume                | description                                          |
 |-----------------------|------------------------------------------------------|
 | /app/database         | sqlite database path                                 |
-| /app/documents        | discord documents path                               |
+| /app/documents        | discord documents path                               |   
 
 ## used
 
