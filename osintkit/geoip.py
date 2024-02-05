@@ -68,14 +68,9 @@ def convert_coords_to_url(json_response):
 
 def request(input):
     """Request data from all APIs, build json response and hand over."""
-
-    if helper.validate_ip(input):
-        ip = input
-    elif helper.validate_domain(input):
-        ip = helper.domain_to_ip(input)
-    else:
-        return False
-    
+    domain, ip = helper.get_primary(input)
+    if not ip:
+        return None
     response = {}
     result = {}
     for api in api_dict:

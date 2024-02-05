@@ -30,6 +30,15 @@ docker-compose up -d
 | BOT_NAME          | name of the bot                                      | osintbot      |
 | BOT_CHANNEL       | channel the bot will create and post to              | osint         |
 
+### Volumes
+
+Optional volumes to persist data:
+
+| volume                | description                                          |
+|-----------------------|------------------------------------------------------|
+| /app/database         | sqlite database path                                 |
+| /app/documents        | discord documents path                               |
+
 ## used
 
 ### api

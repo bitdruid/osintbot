@@ -28,6 +28,8 @@ def iplookup(ip, domain):
 def request(input):
     """Return iplookup data."""
     domain, ip = helper.get_primary(input)
+    if not domain or not ip:
+        return {}
     response = {}
     iplookup_data = iplookup(ip, domain)
     if "primary ipv4" in iplookup_data:

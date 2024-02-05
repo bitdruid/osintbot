@@ -3,6 +3,9 @@ from discord.ext import commands
 import os
 from datetime import datetime
 from dotenv import load_dotenv
+
+import db
+import send
 import osintkit.helper as helper
 from __version__ import __version__
 #from dotenv import load_dotenv
@@ -17,6 +20,8 @@ modes = ['mention_message', 'direct_message', 'channel_message']
 
 document_path = "documents/"
 os.makedirs(document_path, exist_ok=True)
+
+db = db.Database()
 
 class Environment:
     def __init__(self):
@@ -47,7 +52,7 @@ def json_to_markdown_codeblock(json):
     markdown = ""
     message = ""
     for key, value in json.items():
-        heading = f"**{key}:**\n"
+        heading = f"**{key}**\n"
         if isinstance(value, dict):
             markdown += "```\n"
             for subkey, subvalue in value.items():
@@ -67,7 +72,7 @@ def json_to_markdown_codeblock(json):
         heading, url, markdown = "", "", ""
     return message + "\n"
 
-async def output_text_result(ctx, input: str, result: str, key: str, dm: bool = False):
+async def output_text_result(ctx, input: str, result: str, key: str):
     """
     Sends the output text result to the specified context (channel or direct message).
 
@@ -81,24 +86,33 @@ async def output_text_result(ctx, input: str, result: str, key: str, dm: bool = 
     if key in result:
         result_data = result[key]
         result_message = f"{key.upper()} for {input}:\n" + json_to_markdown_codeblock(result_data)
-        if dm:
-            await ctx.author.send("{}".format(ctx.author.mention) + "\n" + result_message)
-        else:
-            await ctx.send("{}".format(ctx.author.mention) + "\n" + result_message)
+        await send.message(ctx, result_message)
     else:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + f"No {key.upper()} information available for this input.")
 
 async def output_file_result(ctx, input, result, key):
+    """
+    Sends the result data as a file to the specified Discord channel.
+
+    Parameters:
+    - ctx (discord.Context): The context of the Discord message.
+    - input (str): The input value.
+    - result (dict): The result data.
+    - key (str): The key to access the result data.
+    """
     if key in result:
         result_data = result[key]
         document = create_document(key + "_" + input + ".txt", result_data)
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + f"{key.upper()} data for {input}:", file=discord.File(document, filename=key + "_" + input + ".txt"))
+        await send.message(ctx, f"{key.upper()} data for {input}:", file=discord.File(document, filename=key + "_" + input + ".txt"))
     else:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + f"No {key.upper()} information available for this input.")
      
 async def initialize():
     # check if bot-channel exists and create it if not
     for guild in bot.guilds:
+        # insert guild leader into database
+        db.db_insert_leader(guild.owner.id, guild.owner.name, guild.id, guild.name)
+        db.db_insert_global_config(guild.id, guild.name)
         for channel in guild.channels:
             if channel.name == Environment().bot_channel:
                 return
@@ -131,6 +145,7 @@ async def on_command_error(ctx, error):
 @bot.event
 async def on_ready():
     await initialize()
+    
 @bot.event
 async def on_guild_join(guild):
     await initialize()
@@ -229,6 +244,29 @@ async def query_geoip(ctx, input=None):
 
 
 
+import osintkit.arecord as arecord
+@commands.cooldown(1, 15, commands.BucketType.guild)
+@bot.command(name='arecord', description='Shows A record information for a domain or IP address')
+async def query_arecord(ctx, input=None):
+    if not input:
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/arecord <ip/domain>")
+        return
+    if not helper.validate_primary(input):
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
+        return
+    arecord_data = arecord.request(input)
+    if arecord_data:
+        await output_text_result(ctx, input, arecord_data, "arecord")
+    else:
+        failed_message = \
+            "No A record information available for this input. " + \
+            "Check if the domain or IP address is valid and does exist."
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + failed_message)
+
+
+
+
+
 @commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='report', description='Gives you whois, iplookup and geoip information for a domain or IP address')
 async def report(ctx, input=None):
@@ -304,18 +342,70 @@ async def prune(ctx):
 
 
 
-# @bot.command(name='config', description='Configure bot settings for you and your server')
-# async def config(ctx, mode=None, value=None):
-#     if ctx.channel.name == Environment().bot_channel:
-#         if not mode:
-#             await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/config <mode> <value>")
-#             return
-#         if not value:
-#             await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/config <mode> <value>")
-#             return
-#         if mode not in modes:
-#             await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid mode. Available modes are: {}".format(modes))
-#             return
+@bot.command(name='config', description='Configure bot settings for you and your server')
+async def config(ctx, command=None, key=None, value=None):
+    mode = "set the bot mode for response to `dm` (direct message) or `mm` (mention message)"
+    globalmode = mode + " or `off` (user can set mode by himself)"
+    if not command:
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + \
+            "**Usage:**\n/config <command> <value>:\n" + \
+            "Available commands:\n" + \
+            "- `mode` - " + mode + "\n" + \
+            "- `show` - show the current configuration\n" + \
+            "Admin commands:\n" + \
+            # "- `mkadmin <@user>` - make a user admin\n" + \
+            # "- `rmadmin <@user>` - remove a user from admin\n" + \
+            "- `globalmode` <mode> - " + globalmode + "\n" + \
+            "- `userdump` - dump the user database\n" + \
+            "- `confdump` - dump the configuration database")
+        return
+    if command == "mode":
+        if not key:
+            await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/config mode <mode>:\n" + mode)
+            return
+        if key == "dm":
+            db.db_set_user_config(ctx.author.id, ctx.guild.id, "tbl_user_response_mode", "dm")
+            await ctx.send("{}".format(ctx.author.mention) + "\n" + "Bot responses will be sent as direct message for user" + ctx.author.mention)
+        elif key == "mm":
+            db.db_set_user_config(ctx.author.id, ctx.guild.id, "tbl_user_response_mode", "mm")
+            await ctx.send("{}".format(ctx.author.mention) + "\n" + "Bot responses will be public sent as mention message for user" + ctx.author.mention)
+    if command == "show":
+        if db.db_isleader(ctx.author.id, ctx.guild.id):
+            config = db.db_get_global_config(ctx.guild.id)
+            config = json_to_markdown_codeblock(config)
+            await ctx.send("{}".format(ctx.author.mention) + "\n" + "Configuration for:\n" + config)
+        else:
+            config = db.db_get_user_config(ctx.author.id, ctx.guild.id)
+            config = json_to_markdown_codeblock(config)
+            await ctx.send("{}".format(ctx.author.mention) + "\n" + "Configuration for:\n" + config)
+    if db.db_isleader(ctx.author.id, ctx.guild.id):
+        if command == "userdump":
+            dump = db.db_dump(ctx.guild.id, "user")
+            document = create_document("dbdump" + "_" + ctx.guild.name + ".txt", dump)
+            await ctx.send("{}".format(ctx.author.mention) + "\n" + "Database dump for {}:".format(ctx.guild.name), file=discord.File(document, filename="dbdump" + "_" + ctx.guild.name + ".txt"))
+        if command == "confdump":
+            dump = db.db_dump(ctx.guild.id, "conf")
+            document = create_document("confdump" + "_" + ctx.guild.name + ".txt", dump)
+            await ctx.send("{}".format(ctx.author.mention) + "\n" + "Configuration dump for {}:".format(ctx.guild.name), file=discord.File(document, filename="confdump" + "_" + ctx.guild.name + ".txt"))
+        if command == "globalmode":
+            if not key:
+                await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/config globalmode <mode>:\n" + globalmode)
+                return
+            if key == "dm":
+                db.db_set_global_config(ctx.guild.id, ctx.author.id, "tbl_global_response_mode", "dm")
+                await ctx.send("{}".format(ctx.author.mention) + "\n" + "Bot responses will be sent as direct message.")
+            elif key == "mm":
+                db.db_set_global_config(ctx.guild.id, ctx.author.id, "tbl_global_response_mode", "mm")
+                await ctx.send("{}".format(ctx.author.mention) + "\n" + "Bot responses will be public sent as mention message.")
+            elif key == "off":
+                db.db_set_global_config(ctx.guild.id, ctx.author.id, "tbl_global_response_mode", "off")
+                await ctx.send("{}".format(ctx.author.mention) + "\n" + "Bot responses will be sent like the user specified for himself.")
+    else:
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + "You are not the leader of this server and not allowed to use this command.")
+
+
+
+            
         
 
 
@@ -339,12 +429,17 @@ async def about(ctx):
 # you can run commands by mentioning the bot
 @bot.event
 async def on_message(message):
-
-    # ignore messages from bot and other channels then bot-channel
+    # ignore messages from bot, dms and other channels then bot-channel
     if message.author == bot.user:
+        return
+    if message.guild is None:
+        await message.channel.send(f"Please communicate in the bot-channel.")
         return
     if message.channel.name != Environment().bot_channel:
         return
+    
+    # add the user to the database
+    db.db_insert_user(message.author.id, message.author.name, message.guild.id, message.guild.name)
     
     if bot.user.mentioned_in(message):
         # remove mention from message

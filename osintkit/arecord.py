@@ -16,7 +16,8 @@ def request(input: str) -> str:
     - str: A JSON string containing the A and AAAA records of the domain, or False if no records are found.
 
     """
-    domain = helper.ip_to_domain(input)
+    if not (domain := helper.ip_to_domain(input)):
+        return False
     arecords = []
     response = {}
     result = {}

@@ -34,8 +34,11 @@ def validate_domain(domain):
 def validate_ip(ip):
     """validate if an ip is given"""
     try:
-        ipaddress.ip_address(ip)
-        return True
+        if ipaddress.ip_address(ip).is_private:
+            print("Private IP address given.")
+            return False
+        if ipaddress.ip_address(ip):
+            return True
     except:
         return False
 
@@ -59,20 +62,30 @@ def validate_primary(input: str) -> bool:
 
 def domain_to_ip(domain: str) -> str:
     try:
+        #print("Trying to resolve domain {}.".format(domain))
         if validate_ip(domain):
             return domain
         ip = socket.gethostbyname(domain)
-        return ip
+        #print("IP address for domain {} is {}.".format(domain, ip))
+        if validate_ip(ip):
+            return ip
+        else:
+            return False
     except:
         return False
     
     
 def ip_to_domain(ip: str) -> str:
     try:
+        #print("Trying to resolve ip {}.".format(ip))
         if validate_domain(ip):
             return ip
         domain = socket.gethostbyaddr(ip)[0]
-        return domain
+        #print("Domain for ip {} is {}.".format(ip, domain))
+        if validate_domain(domain):
+            return domain
+        else:
+            return False
     except:
         return False
     
@@ -93,9 +106,11 @@ def get_primary(input: str) -> tuple:
         ip = domain_to_ip(input)
         if ip:
             return input, ip
+        return False, False
     elif validate_ip(input):
         domain = ip_to_domain(input)
         if domain:
             return domain, input
+        return False, False
     else:
         return False, False
