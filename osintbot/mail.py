@@ -24,14 +24,56 @@ class Mail:
         self.imap_port = os.getenv('MAIL_IMAP_PORT') if os.getenv('MAIL_IMAP_PORT') else sys.exit('No IMAP port provided')
         self.imap_loop()
 
+    def imap_loop(self):
+        current_time = time.time()
+        self.imap_connect()
+        while True:
+            mail_dict = self.read_email()
+            if mail_dict:
+                for mail_id in mail_dict:
+                    time.sleep(1)
+                    if not self.parse_subject(mail_dict[mail_id]):
+                        continue
+                    self.send_email(mail_dict[mail_id]['from'], 'osintbot response to: "' + self.FUNCTION + ' ' + self.INPUT + '"', self.run_function())
+                    #self.imap_delete(imap, mail_id)
+
+            if time.time() - current_time > self.connection_expire:
+                print(f'Connection expired. Reconnecting to IMAP server {self.imap_server}.')
+                self.imap_disconnect()
+                current_time = time.time()
+                self.imap_connect()
+            time.sleep(10)
+
+    def imap_connect(self):
+        self.IMAP = imaplib.IMAP4_SSL(self.imap_server)
+        self.IMAP.login(self.email, self.password)
+
+    def imap_disconnect(self):
+        self.IMAP.close()
+
+    def smtp_connect(self):
+        self.SMTP = smtplib.SMTP(self.smtp_server, self.smtp_port)
+        self.SMTP.starttls()
+        self.SMTP.login(self.email, self.password)
+
+    def smtp_disconnect(self):
+        self.SMTP.quit()
+
+    def imap_delete(self, mail_id):
+        try:
+            self.IMAP.store(mail_id, '+FLAGS', '\\Deleted')
+            self.IMAP.expunge()
+            print('Email deleted successfully')
+        except Exception as e:
+            print('Email failed to delete')
+            print(e)
+
     def send_email(self, to, subject, message):
         try:
-            server = smtplib.SMTP(self.smtp_server, self.smtp_port)
-            server.starttls()
-            server.login(self.email, self.password)
+            self.smtp_connect()
             message = f'Subject: {subject}\n\n{message}'
-            server.sendmail(self.email, to, message)
-            server.quit()
+            self.SMTP.sendmail(self.email, to, message)
+            self.SMTP.quit()
             print('Email sent successfully')
         except Exception as e:
             print('Email failed to send')
@@ -39,6 +81,7 @@ class Mail:
 
     def read_email(self):
         try:
+            self.IMAP.select('inbox')
             mail_dict = {}
             status, messages = self.IMAP.search(None, '(TO "osintbot@apfelbaum.cloud")')
             messages = messages[0].split()
@@ -59,49 +102,6 @@ class Mail:
         except Exception as e:
             print('Failed to read email')
             print(e)
-
-    def imap_delete(self, mail_id):
-        try:
-            self.IMAP.store(mail_id, '+FLAGS', '\\Deleted')
-            self.IMAP.expunge()
-            print('Email deleted successfully')
-        except Exception as e:
-            print('Email failed to delete')
-            print(e)
-
-    def imap_loop(self):
-        import pprint
-        current_time = time.time()
-        while True:
-            self.imap_connect()
-            mail_dict = self.read_email()
-            if mail_dict:
-                for mail_id in mail_dict:
-                    time.sleep(1)
-                    pprint.pprint(mail_dict[mail_id])
-                    if not self.parse_subject(mail_dict[mail_id]):
-                        continue
-                    self.send_email(mail_dict[mail_id]['from'], 'osintbot response to: "' + self.FUNCTION + ' ' + self.INPUT + '"', self.run_function())
-                    #self.imap_delete(imap, mail_id)
-
-            if time.time() - current_time > self.connection_expire:
-                self.imap_disconnect()
-                current_time = time.time()
-            time.sleep(10)
-
-    def imap_connect(self):
-        self.IMAP = imaplib.IMAP4_SSL(self.imap_server)
-        self.IMAP.login(self.email, self.password)
-        self.IMAP.select('inbox')
-
-    def imap_disconnect(self):
-        self.IMAP.close()
-
-    def smtp_connect(self):
-        self.SMTP = smtplib.SMTP(self.smtp_server, self.smtp_port).starttls().login(self.email, self.password)
-
-    def smtp_disconnect(self):
-        self.SMTP.quit()
 
     def parse_subject(self, mail):
         try:
