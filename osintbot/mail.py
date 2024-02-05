@@ -1,3 +1,4 @@
+import helper as bot_helper
 import os
 import sys
 from dotenv import load_dotenv
@@ -15,7 +16,7 @@ class Mail:
 
     def __init__(self):
         self.mail_expire = 60
-        self.connection_expire = 60
+        self.connection_expire = 3600
         self.email = os.getenv('MAIL_USER') if os.getenv('MAIL_USER') else sys.exit('No email provided')
         self.password = os.getenv('MAIL_PASS') if os.getenv('MAIL_PASS') else sys.exit('No password provided')
         self.smtp_server = os.getenv('MAIL_SMTP_SERVER') if os.getenv('MAIL_SMTP_SERVER') else sys.exit('No SMTP server provided')
@@ -23,6 +24,10 @@ class Mail:
         self.imap_server = os.getenv('MAIL_IMAP_SERVER') if os.getenv('MAIL_IMAP_SERVER') else sys.exit('No IMAP server provided')
         self.imap_port = os.getenv('MAIL_IMAP_PORT') if os.getenv('MAIL_IMAP_PORT') else sys.exit('No IMAP port provided')
         self.imap_loop()
+
+
+
+
 
     def imap_loop(self):
         current_time = time.time()
@@ -44,6 +49,10 @@ class Mail:
                 self.imap_connect()
             time.sleep(10)
 
+
+
+
+
     def imap_connect(self):
         self.IMAP = imaplib.IMAP4_SSL(self.imap_server)
         self.IMAP.login(self.email, self.password)
@@ -59,6 +68,10 @@ class Mail:
     def smtp_disconnect(self):
         self.SMTP.quit()
 
+
+
+
+
     def imap_delete(self, mail_id):
         try:
             self.IMAP.store(mail_id, '+FLAGS', '\\Deleted')
@@ -67,6 +80,10 @@ class Mail:
         except Exception as e:
             print('Email failed to delete')
             print(e)
+
+
+
+
 
     def send_email(self, to, subject, message):
         try:
@@ -97,11 +114,16 @@ class Mail:
                 mail_subject = self.IMAP.fetch(mail_id, '(BODY[HEADER.FIELDS (SUBJECT)])')[1][0][1].decode().split('Subject: ')[1].removesuffix('\r\n\r\n').strip()
                 mail_dict[mail_id] = {'from': mail_from, 'subject': mail_subject, 'time': mail_time}
             # for mail_id in mail_expired:
-            #     self.imap_delete(imap, mail_id)
+            #     self.imap_delete(mail_id)
+            #     time.sleep(1)
             return mail_dict
         except Exception as e:
             print('Failed to read email')
             print(e)
+
+
+
+
 
     def parse_subject(self, mail):
         try:
@@ -116,6 +138,10 @@ class Mail:
             self.imap_delete(mail)
             return False
     
+
+
+
+
     def run_function(self):
         if self.FUNCTION and self.INPUT:
             if self.FUNCTION == 'whois':
@@ -130,10 +156,9 @@ class Mail:
             if self.FUNCTION == 'arecord':
                 import osintkit.arecord as arecord
                 response = arecord.request(self.INPUT)
-            message = ""
-            for key in response:
-                message += response[key]
-            return message
+            if self.FUNCTION == 'help':
+                response = {'help': 'Send an email with the subject <function> <input>:\nfunction: whois, geoip, iplookup, arecord\ninput: domain or IP address'}
+            return bot_helper.json_to_string(response)
 
 def main():
     if os.path.isfile('.env'):

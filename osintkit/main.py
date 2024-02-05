@@ -9,7 +9,7 @@ def main():
     parser = argparse.ArgumentParser(description="OSINT Kit")
     required = parser.add_mutually_exclusive_group(required=True)
 
-    required.add_argument("--whois", type=str, metavar="", help="Perform a whois lookup on a domain")
+    required.add_argument("--whois", type=str, metavar="", help="Perform a whois lookup on a domain or IP address")
     required.add_argument("--iplookup", type=str, metavar="", help="Perform an IP lookup on a domain or IP address")
     required.add_argument("--geoip", type=str, metavar="", help="Perform a GeoIP lookup on a domain or IP address")
     required.add_argument("--arecord", type=str, metavar="", help="Perform an A record lookup on a domain")

@@ -15,4 +15,4 @@ WORKDIR /app
 COPY --from=whois /usr/bin/whois /usr/bin/whois
 COPY --from=requirements /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY osintbot/* /app/
-CMD ["python3", "discord.py"]
+CMD ["python3", "bot.py"]

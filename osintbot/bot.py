@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 
 import db
 import send
-import osintkit.helper as helper
+import helper as bot_helper
+import osintkit.helper as kit_helper
 from __version__ import __version__
 #from dotenv import load_dotenv
 
@@ -103,7 +104,7 @@ async def output_file_result(ctx, input, result, key):
     if key in result:
         result_data = result[key]
         document = create_document(key + "_" + input + ".txt", result_data)
-        await send.message(ctx, f"{key.upper()} data for {input}:", file=discord.File(document, filename=key + "_" + input + ".txt"))
+        await send.message(ctx, f"{key.upper()} data for {input}:", file=bot.File(document, filename=key + "_" + input + ".txt"))
     else:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + f"No {key.upper()} information available for this input.")
      
@@ -117,9 +118,9 @@ async def initialize():
             if channel.name == Environment().bot_channel:
                 return
         overwrites = {
-            guild.owner: discord.PermissionOverwrite(read_messages=True),
-            guild.me: discord.PermissionOverwrite(read_messages=True),
-            guild.default_role: discord.PermissionOverwrite(read_messages=False)
+            guild.owner: bot.PermissionOverwrite(read_messages=True),
+            guild.me: bot.PermissionOverwrite(read_messages=True),
+            guild.default_role: bot.PermissionOverwrite(read_messages=False)
         }
         channel = await guild.create_text_channel(Environment().bot_channel, overwrites=overwrites)
         await channel.send("{}".format(guild.owner.mention) + "\n" + f"I'm {Environment().bot_name} and created this private channel for interaction. Configure permissions for this channel as you like.\nGet started with `/help` or mention `@{Environment().bot_name} help` in this channel.")
@@ -182,7 +183,7 @@ async def query_whois(ctx, domain=None):
     if not domain:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/whois <ip/domain>")
         return
-    if not helper.validate_domain(domain) and not helper.validate_ip(domain):
+    if not kit_helper.validate_domain(domain) and not kit_helper.validate_ip(domain):
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
         return
     whois_data = whois.request(domain)
@@ -205,7 +206,7 @@ async def query_iplookup(ctx, input=None):
     if not input:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/iplookup <ip/domain>")
         return
-    if not helper.validate_domain(input) and not helper.validate_ip(input):
+    if not kit_helper.validate_domain(input) and not kit_helper.validate_ip(input):
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
         return
     iplookup_data = iplookup.request(input)
@@ -228,7 +229,7 @@ async def query_geoip(ctx, input=None):
     if not input:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/geoip <ip/domain>")
         return
-    if not helper.validate_domain(input) and not helper.validate_ip(input):
+    if not kit_helper.validate_domain(input) and not kit_helper.validate_ip(input):
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
         return
     geoip_data = geoip.request(input)
@@ -251,7 +252,7 @@ async def query_arecord(ctx, input=None):
     if not input:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/arecord <ip/domain>")
         return
-    if not helper.validate_primary(input):
+    if not kit_helper.validate_primary(input):
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
         return
     arecord_data = arecord.request(input)
@@ -273,14 +274,14 @@ async def report(ctx, input=None):
     if not input:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/report <ip/domain>")
         return
-    if not helper.validate_domain(input) and not helper.validate_ip(input):
+    if not kit_helper.validate_domain(input) and not kit_helper.validate_ip(input):
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
         return
     report_data = {}
     whois_data = whois.request(input)
     if "whois" in whois_data: 
         document = create_document("whois" + "_" + input + ".txt", whois_data["whois"])
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "WHOIS data for {}:".format(input), file=discord.File(document, filename="whois" + "_" + input + ".txt"))            
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + "WHOIS data for {}:".format(input), file=bot.File(document, filename="whois" + "_" + input + ".txt"))            
     iplookup_data = iplookup.request(input)
     if iplookup_data:
         report_data["iplookup"] = iplookup_data["iplookup"]
@@ -382,11 +383,11 @@ async def config(ctx, command=None, key=None, value=None):
         if command == "userdump":
             dump = db.db_dump(ctx.guild.id, "user")
             document = create_document("dbdump" + "_" + ctx.guild.name + ".txt", dump)
-            await ctx.send("{}".format(ctx.author.mention) + "\n" + "Database dump for {}:".format(ctx.guild.name), file=discord.File(document, filename="dbdump" + "_" + ctx.guild.name + ".txt"))
+            await ctx.send("{}".format(ctx.author.mention) + "\n" + "Database dump for {}:".format(ctx.guild.name), file=bot.File(document, filename="dbdump" + "_" + ctx.guild.name + ".txt"))
         if command == "confdump":
             dump = db.db_dump(ctx.guild.id, "conf")
             document = create_document("confdump" + "_" + ctx.guild.name + ".txt", dump)
-            await ctx.send("{}".format(ctx.author.mention) + "\n" + "Configuration dump for {}:".format(ctx.guild.name), file=discord.File(document, filename="confdump" + "_" + ctx.guild.name + ".txt"))
+            await ctx.send("{}".format(ctx.author.mention) + "\n" + "Configuration dump for {}:".format(ctx.guild.name), file=bot.File(document, filename="confdump" + "_" + ctx.guild.name + ".txt"))
         if command == "globalmode":
             if not key:
                 await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/config globalmode <mode>:\n" + globalmode)
