@@ -41,6 +41,12 @@ docker-compose up -d
 | BOT_TOKEN         | API-token of the bot                                 | must be given |
 | BOT_NAME          | name of the bot                                      | osintbot      |
 | BOT_CHANNEL       | channel the bot will create and post to              | osint         |
+| MAIL_IMAP_SERVER  | imap server to receive mails                         |               |
+| MAIL_IMAP_PORT    | imap port                                            | 993           |
+| MAIL_SMTP_SERVER  | smtp server to send mails                            |               |
+| MAIL_SMTP_PORT    | smtp port                                            | 587           |
+| MAIL_USER         | mail user                                            |               |
+| MAIL_PASS         | mail password                                        |               |
 
 ### Volumes
 

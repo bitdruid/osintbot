@@ -26,7 +26,7 @@ db = db.Database()
 class Environment:
     def __init__(self):
         if os.path.isfile('.env'):
-            load_dotenv()
+            load_dotenv(dotenv_path='.env')
         self.bot_token = os.getenv('BOT_TOKEN') if os.getenv('BOT_TOKEN') else ValueError("BOT_TOKEN is not set")
         self.bot_name = os.getenv('BOT_NAME') if os.getenv('BOT_NAME') else "osintbot"
         self.bot_channel = os.getenv('BOT_CHANNEL') if os.getenv('BOT_CHANNEL') else "osint"
