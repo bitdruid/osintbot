@@ -1,10 +1,12 @@
 import discord
 from discord.ext import commands
 import os
+import sys
 from datetime import datetime
 from dotenv import load_dotenv
 
 import db
+import mail
 import send
 import helper as bot_helper
 import osintkit.helper as kit_helper
@@ -22,15 +24,20 @@ modes = ['mention_message', 'direct_message', 'channel_message']
 document_path = "documents/"
 os.makedirs(document_path, exist_ok=True)
 
+log_path = "logs/"
+os.makedirs(log_path, exist_ok=True)
+
 db = db.Database()
+mail = mail.Mail()
 
 class Environment:
     def __init__(self):
         if os.path.isfile('.env'):
             load_dotenv(dotenv_path='.env')
-        self.bot_token = os.getenv('BOT_TOKEN') if os.getenv('BOT_TOKEN') else ValueError("BOT_TOKEN is not set")
+        self.bot_token = os.getenv('BOT_TOKEN') if os.getenv('BOT_TOKEN') else sys.exit("Bot Token ENV not set.")
         self.bot_name = os.getenv('BOT_NAME') if os.getenv('BOT_NAME') else "osintbot"
         self.bot_channel = os.getenv('BOT_CHANNEL') if os.getenv('BOT_CHANNEL') else "osint"
+        self.mail_user = os.getenv('MAIL_USER') if os.getenv('MAIL_USER') else None
         self.about_message = \
             "This bot was created by bitdruid.\n" + \
             "Current Version is: {}\n\n".format(__version__) + \
@@ -165,14 +172,17 @@ async def help(ctx):
     commands = dict(sorted(commands.items()))
     for command in commands:
         commands_message += commands[command] + "\n"
-    await ctx.send("{}".format(ctx.author.mention) + \
+    message = \
         "\n\n" + \
         "__I am {} and i can help you with this:__".format(Environment().bot_name) + \
         "\n\n" + \
         commands_message + \
         "\n" + \
-        "You can also mention me to run commands.\nExample: `@{} whois example.com`".format(Environment().bot_name))
-
+        "You can also mention me to run commands.\nExample: x@xx whois example.com`".format(Environment().bot_name)
+    if Environment().mail_user:
+        message += \
+            "Further you can write a mail to " + Environment().mail_user + " with the subject <command> <input> to get the result as a mail."
+    await ctx.send("{}".format(ctx.author.mention) + message)
 
 
 

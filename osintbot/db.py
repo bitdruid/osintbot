@@ -6,7 +6,7 @@ from sqlite3 import Error
 
 class Database:
 
-    DB_FILE = 'database/osintbot.db'
+    DB_FILE = 'database/osintbot.sqlite'
     USER_TABLE = """CREATE TABLE IF NOT EXISTS user (
                     id integer PRIMARY KEY,
                     tbl_guild_id text NOT NULL,
@@ -22,6 +22,13 @@ class Database:
                     tbl_guild_id text NOT NULL,
                     tbl_guild_name text NOT NULL,
                     tbl_global_response_mode text DEFAULT "off"
+                );"""
+    MAIL_TABLE = """CREATE TABLE IF NOT EXISTS mail (
+                    id integer PRIMARY KEY,
+                    tbl_expired integer DEFAULT 0,
+                    tbl_timestamp text DEFAULT CURRENT_TIMESTAMP,
+                    tbl_from text NOT NULL,
+                    tbl_subject text NOT NULL
                 );"""
 
 
@@ -53,6 +60,7 @@ class Database:
             cursor = connect.cursor()
             cursor.execute(self.USER_TABLE)
             cursor.execute(self.CONF_TABLE)
+            cursor.execute(self.MAIL_TABLE)
         except Error as e:
             print(e)
         finally:
@@ -194,3 +202,13 @@ class Database:
         for row in dump:
             db_str += f"{row}\n"
         return db_str
+    
+
+
+
+
+    def mail_insert(self, mail_expire: int, mail_from: str, mail_subject: str) -> None:
+        self.db_run_query(
+            "INSERT INTO mail (tbl_expired, tbl_from, tbl_subject) VALUES (?, ?, ?)",
+            (mail_expire, mail_from, mail_subject)
+        )
