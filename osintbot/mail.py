@@ -175,7 +175,7 @@ class Mail:
                 self.log(f"--> Email {mail_id} expired. From: {mail_from}, Subject: {mail_subject}, Time: {mail_time}")
                 expired = True
                 expired_emails.append(mail_id)
-            self.db.mail_insert(self.expired, mail_from, mail_subject)
+            self.db.mail_insert(expired, mail_from, mail_subject)
         if expired_emails:
             self.delete_email(expired_emails)
 
