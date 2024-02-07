@@ -67,7 +67,6 @@ def request(domain: str) -> dict:
             response["creation_date"] = whois_creation_date(domain, whois_data)
             response["registrar"] = whois_registrar(domain, whois_data)
             response["organization"] = whois_organization(domain, whois_data)
-            response["status"] = whois_status(domain, whois_data)
             response["whois"] = whois_data
             return response
         else:

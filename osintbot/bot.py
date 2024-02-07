@@ -308,11 +308,11 @@ async def config(ctx, command=None, key=None, value=None):
         if command == "userdump":
             dump = db.db_dump(ctx.guild.id, "user")
             document = create_document("dbdump" + "_" + ctx.guild.name + ".txt", dump)
-            await ctx.send("{}".format(ctx.author.mention) + "\n" + "Database dump for {}:".format(ctx.guild.name), file=bot.File(document, filename="dbdump" + "_" + ctx.guild.name + ".txt"))
+            await ctx.send("{}".format(ctx.author.mention) + "\n" + "Database dump for {}:".format(ctx.guild.name), file=discord.File(document, filename="dbdump" + "_" + ctx.guild.name + ".txt"))
         if command == "confdump":
             dump = db.db_dump(ctx.guild.id, "conf")
             document = create_document("confdump" + "_" + ctx.guild.name + ".txt", dump)
-            await ctx.send("{}".format(ctx.author.mention) + "\n" + "Configuration dump for {}:".format(ctx.guild.name), file=bot.File(document, filename="confdump" + "_" + ctx.guild.name + ".txt"))
+            await ctx.send("{}".format(ctx.author.mention) + "\n" + "Configuration dump for {}:".format(ctx.guild.name), file=discord.File(document, filename="confdump" + "_" + ctx.guild.name + ".txt"))
         if command == "globalmode":
             if not key:
                 await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/config globalmode <mode>:\n" + globalmode)

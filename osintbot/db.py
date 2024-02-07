@@ -102,16 +102,22 @@ class Database:
             self.db_close(connect)
 
     def db_insert_user(self, user_id: str, user_name: str, guild_id: str, guild_name: str) -> None:
-        self.db_run_query(
-            "INSERT INTO user (tbl_user_id, tbl_user_name, tbl_guild_id, tbl_guild_name, tbl_user_role) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
-            (user_id, user_name, guild_id, guild_name, "user")
-        )
+        if self.db_run_read_query("SELECT * FROM user WHERE tbl_user_id = ? AND tbl_guild_id = ?", (user_id, guild_id)):
+            return
+        else:
+            self.db_run_query(
+                "INSERT INTO user (tbl_user_id, tbl_user_name, tbl_guild_id, tbl_guild_name, tbl_user_role) VALUES (?, ?, ?, ?, ?)",
+                (user_id, user_name, guild_id, guild_name, "user")
+            )
 
     def db_insert_leader(self, user_id: str, user_name: str, guild_id: str, guild_name: str) -> None:
-        self.db_run_query(
-            "INSERT INTO user (tbl_user_id, tbl_user_name, tbl_guild_id, tbl_guild_name, tbl_user_role) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
-            (user_id, user_name, guild_id, guild_name, "lead")
-        )
+        if self.db_run_read_query("SELECT * FROM user WHERE tbl_user_id = ? AND tbl_guild_id = ?", (user_id, guild_id)):
+            return
+        else:
+            self.db_run_query(
+                "INSERT INTO user (tbl_user_id, tbl_user_name, tbl_guild_id, tbl_guild_name, tbl_user_role) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
+                (user_id, user_name, guild_id, guild_name, "lead")
+            )
 
     def db_insert_global_config(self, guild_id: str, guild_name: str) -> None:
         self.db_run_query(
