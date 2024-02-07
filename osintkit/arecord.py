@@ -18,7 +18,6 @@ def request(input: str) -> str:
     """
     if not (domain := helper.ip_to_domain(input)):
         return False
-    arecords = []
     response = {}
 
     resolver = dns.resolver.Resolver()
@@ -27,16 +26,16 @@ def request(input: str) -> str:
     try:
         arecords = resolver.resolve(domain, "A")
         arecords = [str(record) for record in arecords]
-        a_str = "\n".join(arecords)
-        response["A"] = a_str
+        #a_str = "\n".join(arecords)
+        response["A"] = arecords
     except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
         response["A"] = "N/A"
 
     try:
         aaaa_records = resolver.resolve(domain, "AAAA")
         aaaa_records = [str(record) for record in aaaa_records]
-        aaaa_str = "\n".join(aaaa_records)
-        response["AAAA"] = aaaa_str
+        #aaaa_str = "\n".join(aaaa_records)
+        response["AAAA"] = aaaa_records
     except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
         response["AAAA"] = "N/A"
 

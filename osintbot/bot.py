@@ -156,12 +156,12 @@ async def datarequest_failed(ctx, command, input):
 import osintkit.whois as whois
 @bot.command(name='whois', description='Shows WHOIS information for a domain', )
 async def query_whois(ctx, domain=None):
-    await datarequest_input_check(ctx, ctx.command.name, domain)
+    await datarequest_input_check(ctx, "whois", domain)
     data = whois.request(domain)
     if data:
-        await output_file_result(ctx, domain, data, ctx.command.name)
+        await output_file_result(ctx, domain, data, "whois")
     else:
-        await datarequest_failed(ctx, ctx.command.name, domain)
+        await datarequest_failed(ctx, "whois", domain)
 
 
 
@@ -171,12 +171,12 @@ import osintkit.iplookup as iplookup
 @commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='iplookup', description='Shows IP information for a domain or IP address')
 async def query_iplookup(ctx, input=None):
-    await datarequest_input_check(ctx, ctx.command.name, input)
+    await datarequest_input_check(ctx, "iplookup", input)
     data = iplookup.request(input)
     if data:
-        await output_text_result(ctx, input, data, ctx.command.name)
+        await output_text_result(ctx, input, data, "iplookup")
     else:
-        await datarequest_failed(ctx, ctx.command.name, input)
+        await datarequest_failed(ctx, "iplookup", input)
 
 
 
@@ -187,12 +187,12 @@ import osintkit.geoip as geoip
 @commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='geoip', description='Shows GeoIP information for a domain or IP address')
 async def query_geoip(ctx, input=None):
-    await datarequest_input_check(ctx, ctx.command.name, input)
+    await datarequest_input_check(ctx, "geoip", input)
     data = geoip.request(input)
     if data:
-        await output_text_result(ctx, input, data, ctx.command.name)
+        await output_text_result(ctx, input, data, "geoip")
     else:
-        await datarequest_failed(ctx, ctx.command.name, input)
+        await datarequest_failed(ctx, "geoip", input)
 
 
 
@@ -201,12 +201,12 @@ import osintkit.arecord as arecord
 @commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='arecord', description='Shows A record information for a domain or IP address')
 async def query_arecord(ctx, input=None):
-    await datarequest_input_check(ctx, ctx.command.name, input)
+    await datarequest_input_check(ctx, "arecord", input)
     data = arecord.request(input)
     if data:
-        await output_text_result(ctx, input, data, ctx.command.name)
+        await output_text_result(ctx, input, data, "arecord")
     else:
-        await datarequest_failed(ctx, ctx.command.name, input)
+        await datarequest_failed(ctx, "arecord", input)
 
 
 
@@ -214,13 +214,13 @@ async def query_arecord(ctx, input=None):
 import datarequest
 @commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='report', description='Gives you whois, iplookup and geoip information for a domain or IP address')
-async def report(ctx, input=None):
-    await datarequest_input_check(ctx, ctx.command.name, input)
+async def query_report(ctx, input=None):
+    await datarequest_input_check(ctx, "report", input)
     report_data = datarequest.full_report(input)
     if report_data:
-        await output_file_result(ctx, input, report_data, ctx.command.name)
+        await output_file_result(ctx, input, report_data, "report")
     else:
-        await datarequest_failed(ctx, ctx.command.name, input)
+        await datarequest_failed(ctx, "report", input)
 
 
 
