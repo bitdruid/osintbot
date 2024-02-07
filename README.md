@@ -54,8 +54,9 @@ Optional volumes to persist data:
 
 | volume                | description                                          |
 |-----------------------|------------------------------------------------------|
-| /app/database         | sqlite database path                                 |
-| /app/documents        | discord documents path                               |   
+| /app/database         | sqlite database                                      |
+| /app/documents        | discord documents                                    |
+| /app/logs             | log files                                            | 
 
 ## used
 
