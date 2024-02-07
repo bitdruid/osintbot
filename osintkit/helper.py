@@ -114,3 +114,30 @@ def get_primary(input: str) -> tuple:
         return False, False
     else:
         return False, False
+
+def json_to_string(json_input: str, markdown: bool = False) -> str:
+    if not isinstance(json_input, dict):
+        return json_input + "\n"
+    
+    count_keys = len(json_input.keys())
+    current_key = 1
+    message_parts = []
+    for key, value in json_input.items():
+        message_parts.append(f"***{key}:***\n" if markdown else f"{key}:\n")
+        message_parts.append("```\n" if markdown else "")
+        
+        if isinstance(value, dict):
+            message_parts.extend([f"{subkey}: {subvalue}\n" for subkey, subvalue in value.items()])
+        elif isinstance(value, list):
+            message_parts.extend([f"{item}\n" for item in value])
+        elif isinstance(value, str):
+            message_parts.append(f"{value}\n")
+        
+        if current_key == count_keys:
+            message_parts.append("")
+        else:
+            message_parts.append("\n")
+
+        message_parts.append("```\n" if markdown else "")
+        current_key += 1
+    return "".join(message_parts)

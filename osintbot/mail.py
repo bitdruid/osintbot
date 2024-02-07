@@ -1,4 +1,3 @@
-import helper as bot_helper
 import os
 import sys
 import threading
@@ -8,7 +7,9 @@ import smtplib
 import imaplib
 
 import db
+import datarequest
 
+import osintkit.helper as kit_helper
 import osintkit.whois
 import osintkit.geoip
 import osintkit.iplookup
@@ -237,6 +238,7 @@ class Mail:
             'geoip': osintkit.geoip.request,
             'iplookup': osintkit.iplookup.request,
             'arecord': osintkit.arecord.request,
+            'report': datarequest.full_report,
             'help': lambda input: {'help': 'Send an email with the subject <function> <input>:\nfunction: whois, geoip, iplookup, arecord\ninput: domain or IP address'}
         }
         if self.FUNCTION and self.INPUT:
@@ -244,7 +246,7 @@ class Mail:
             if function:
                 self.log(f"--> Running function: '{self.FUNCTION}' with input: '{self.INPUT}'")
                 response = function(self.INPUT)
-                return bot_helper.json_to_string(response)
+                return kit_helper.json_to_string(response)
         
     def exception(self, e):
         self.log(f"!-- Error function: {sys.exc_info()[-1].tb_frame.f_code.co_name}")

@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 import db
 import mail
 import send
-import helper as bot_helper
 import osintkit.helper as kit_helper
 from __version__ import __version__
 #from dotenv import load_dotenv
@@ -54,66 +53,15 @@ def create_document(filename, content):
     document = open(document_path + filename, "rb")
     return document
 
-def json_to_markdown_codeblock(json):
-    heading = ""
-    url = ""
-    markdown = ""
-    message = ""
-    for key, value in json.items():
-        heading = f"**{key}**\n"
-        if isinstance(value, dict):
-            markdown += "```\n"
-            for subkey, subvalue in value.items():
-                if "url" in subkey.lower(): # if url is in key, create clickable link and skip url in markdown
-                    url = "<{}>\n".format(subvalue)
-                    continue
-                markdown += f"{subkey}: {subvalue}\n"
-            markdown += "```\n"
-        else:
-            if "url" in key.lower(): # if url is in key, create clickable link and skip url in markdown
-                url = "<{}>\n".format(subvalue)
-                continue
-            markdown += "```\n"
-            markdown += f"{value}\n"
-            markdown += "```\n"
-        message += heading + url + markdown
-        heading, url, markdown = "", "", ""
-    return message + "\n"
-
-async def output_text_result(ctx, input: str, result: str, key: str):
-    """
-    Sends the output text result to the specified context (channel or direct message).
-
-    Parameters:
-    - ctx (object): The context object representing the channel or user.
-    - input (str): The user input value.
-    - result (str): The query result data.
-    - key (str): The json key to access the specific result data.
-    - dm (bool, optional): Specifies whether to send the result as a direct message. Default is False.
-    """
-    if key in result:
-        result_data = result[key]
-        result_message = f"{key.upper()} for {input}:\n" + json_to_markdown_codeblock(result_data)
-        await send.message(ctx, result_message)
-    else:
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + f"No {key.upper()} information available for this input.")
+async def output_text_result(ctx, input: str, result: str, request: str):
+    message = f"{request.upper()} data for {input}:\n\n" + kit_helper.json_to_string(result, markdown=True)
+    await send.message(ctx, message)
 
 async def output_file_result(ctx, input, result, key):
-    """
-    Sends the result data as a file to the specified Discord channel.
-
-    Parameters:
-    - ctx (discord.Context): The context of the Discord message.
-    - input (str): The input value.
-    - result (dict): The result data.
-    - key (str): The key to access the result data.
-    """
-    if key in result:
-        result_data = result[key]
-        document = create_document(key + "_" + input + ".txt", result_data)
-        await send.message(ctx, f"{key.upper()} data for {input}:", file=bot.File(document, filename=key + "_" + input + ".txt"))
-    else:
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + f"No {key.upper()} information available for this input.")
+    if isinstance(result, dict):
+        result = kit_helper.json_to_string(result)
+    document = create_document(key + "_" + input + ".txt", result)
+    await send.message(ctx, f"{key.upper()} data for {input}:", file=discord.File(document, filename=key + "_" + input + ".txt"))
      
 async def initialize():
     # check if bot-channel exists and create it if not
@@ -178,11 +126,29 @@ async def help(ctx):
         "\n\n" + \
         commands_message + \
         "\n" + \
-        "You can also mention me to run commands.\nExample: x@xx whois example.com`".format(Environment().bot_name)
+        "You can also mention me to run commands.\nExample: `@{} whois example.com`".format(Environment().bot_name)
     if Environment().mail_user:
         message += \
-            "Further you can write a mail to " + Environment().mail_user + " with the subject <command> <input> to get the result as a mail."
+            "\n\n" + \
+            "Further you can write a mail to `{}` with the subject `<command> <input>` to get the result as a mail.".format(Environment().mail_user)
     await ctx.send("{}".format(ctx.author.mention) + message)
+
+
+
+
+
+async def datarequest_input_check(ctx, command, input):
+    if not input:
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + f"**Usage:**\n/{command} <ip/domain>")
+        return
+    if not kit_helper.validate_domain(input) and not kit_helper.validate_ip(input):
+        await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
+        return
+    return True
+
+async def datarequest_failed(ctx, command, input):
+    await ctx.send("{}".format(ctx.author.mention) + "\n" + f"No {command} data available for this input. Check if the domain or IP address is valid and does exist.")
+
 
 
 
@@ -190,20 +156,12 @@ async def help(ctx):
 import osintkit.whois as whois
 @bot.command(name='whois', description='Shows WHOIS information for a domain', )
 async def query_whois(ctx, domain=None):
-    if not domain:
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/whois <ip/domain>")
-        return
-    if not kit_helper.validate_domain(domain) and not kit_helper.validate_ip(domain):
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
-        return
-    whois_data = whois.request(domain)
-    if whois_data:
-        await output_file_result(ctx, domain, whois_data, "whois")
+    await datarequest_input_check(ctx, ctx.command.name, domain)
+    data = whois.request(domain)
+    if data:
+        await output_file_result(ctx, domain, data, ctx.command.name)
     else:
-        failed_message = \
-            "No WHOIS data available for this input. " + \
-            "Check if the domain is valid and does exist."
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + failed_message)
+        await datarequest_failed(ctx, ctx.command.name, domain)
 
 
 
@@ -213,20 +171,13 @@ import osintkit.iplookup as iplookup
 @commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='iplookup', description='Shows IP information for a domain or IP address')
 async def query_iplookup(ctx, input=None):
-    if not input:
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/iplookup <ip/domain>")
-        return
-    if not kit_helper.validate_domain(input) and not kit_helper.validate_ip(input):
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
-        return
-    iplookup_data = iplookup.request(input)
-    if iplookup_data:
-        await output_text_result(ctx, input, iplookup_data, "iplookup")
+    await datarequest_input_check(ctx, ctx.command.name, input)
+    data = iplookup.request(input)
+    if data:
+        await output_text_result(ctx, input, data, ctx.command.name)
     else:
-        failed_message = \
-            "No IP information available for this input. " + \
-            "Check if the domain or IP address is valid and does exist."
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + failed_message)
+        await datarequest_failed(ctx, ctx.command.name, input)
+
 
 
 
@@ -236,21 +187,12 @@ import osintkit.geoip as geoip
 @commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='geoip', description='Shows GeoIP information for a domain or IP address')
 async def query_geoip(ctx, input=None):
-    if not input:
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/geoip <ip/domain>")
-        return
-    if not kit_helper.validate_domain(input) and not kit_helper.validate_ip(input):
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
-        return
-    geoip_data = geoip.request(input)
-    if geoip_data["geoip"]:
-        await output_text_result(ctx, input, geoip_data, "geoip")
+    await datarequest_input_check(ctx, ctx.command.name, input)
+    data = geoip.request(input)
+    if data:
+        await output_text_result(ctx, input, data, ctx.command.name)
     else:
-        failed_message = \
-            "No GeoIP information available for this input. " + \
-            "Check if the domain or IP address is valid and does exist."
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + failed_message)
-
+        await datarequest_failed(ctx, ctx.command.name, input)
 
 
 
@@ -259,53 +201,26 @@ import osintkit.arecord as arecord
 @commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='arecord', description='Shows A record information for a domain or IP address')
 async def query_arecord(ctx, input=None):
-    if not input:
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/arecord <ip/domain>")
-        return
-    if not kit_helper.validate_primary(input):
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
-        return
-    arecord_data = arecord.request(input)
-    if arecord_data:
-        await output_text_result(ctx, input, arecord_data, "arecord")
+    await datarequest_input_check(ctx, ctx.command.name, input)
+    data = arecord.request(input)
+    if data:
+        await output_text_result(ctx, input, data, ctx.command.name)
     else:
-        failed_message = \
-            "No A record information available for this input. " + \
-            "Check if the domain or IP address is valid and does exist."
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + failed_message)
+        await datarequest_failed(ctx, ctx.command.name, input)
 
 
 
 
-
+import datarequest
 @commands.cooldown(1, 15, commands.BucketType.guild)
 @bot.command(name='report', description='Gives you whois, iplookup and geoip information for a domain or IP address')
 async def report(ctx, input=None):
-    if not input:
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/report <ip/domain>")
-        return
-    if not kit_helper.validate_domain(input) and not kit_helper.validate_ip(input):
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "Invalid domain or IP address.")
-        return
-    report_data = {}
-    whois_data = whois.request(input)
-    if "whois" in whois_data: 
-        document = create_document("whois" + "_" + input + ".txt", whois_data["whois"])
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + "WHOIS data for {}:".format(input), file=bot.File(document, filename="whois" + "_" + input + ".txt"))            
-    iplookup_data = iplookup.request(input)
-    if iplookup_data:
-        report_data["iplookup"] = iplookup_data["iplookup"]
-    geoip_data = geoip.request(input)
-    if geoip_data:
-        report_data["geoip"] = geoip_data["geoip"]
+    await datarequest_input_check(ctx, ctx.command.name, input)
+    report_data = datarequest.full_report(input)
     if report_data:
-        for key in report_data:
-            await output_text_result(ctx, input, report_data, key, dm=True)
+        await output_file_result(ctx, input, report_data, ctx.command.name)
     else:
-        failed_message = \
-            "No data available for this input. " + \
-            "Check if the domain or IP address is valid and does exist."
-        await ctx.send("{}".format(ctx.author.mention) + "\n" + failed_message)
+        await datarequest_failed(ctx, ctx.command.name, input)
 
 
 
@@ -383,11 +298,11 @@ async def config(ctx, command=None, key=None, value=None):
     if command == "show":
         if db.db_isleader(ctx.author.id, ctx.guild.id):
             config = db.db_get_global_config(ctx.guild.id)
-            config = json_to_markdown_codeblock(config)
+            config = kit_helper.json_to_string(config)
             await ctx.send("{}".format(ctx.author.mention) + "\n" + "Configuration for:\n" + config)
         else:
             config = db.db_get_user_config(ctx.author.id, ctx.guild.id)
-            config = json_to_markdown_codeblock(config)
+            config = kit_helper.json_to_string(config)
             await ctx.send("{}".format(ctx.author.mention) + "\n" + "Configuration for:\n" + config)
     if db.db_isleader(ctx.author.id, ctx.guild.id):
         if command == "userdump":

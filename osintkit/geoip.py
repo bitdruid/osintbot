@@ -70,25 +70,25 @@ def request(input):
     """Request data from all APIs, build json response and hand over."""
     domain, ip = helper.get_primary(input)
     if not ip:
-        return None
+        return "N/A"
     response = {}
-    result = {}
     for api in api_dict:
         api_data = query_api(api, ip)
         api_data = filter_response(api_data)
         api_data = convert_coords_to_url(api_data)
         if "country" in api_data:
             response[api] = api_data
-    result["geoip"] = response
-    return result
+        else:
+            response[api] = "N/A"
+    return response
 
 
 
 
 
 if __name__ == "__main__":
-    from pprint import pprint
     import sys
+    import json
     script_name = sys.argv[0]
     if "help" in sys.argv or "-h" in sys.argv or "--help" in sys.argv:
         print(f"Usage: python3 {script_name} <domain/ip>")
@@ -97,9 +97,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         input = sys.argv[1]
         response = request(input)
-        if response:
-            pprint(response)
-        else:
-            print("No data available.")
+        response = json.dumps(response, indent=4)
+        print(response)
     else:
         print(f"Usage: python3 {script_name} <domain/ip>")

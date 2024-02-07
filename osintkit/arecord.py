@@ -20,7 +20,6 @@ def request(input: str) -> str:
         return False
     arecords = []
     response = {}
-    result = {}
 
     resolver = dns.resolver.Resolver()
     resolver.nameservers = ['8.8.8.8', '1.1.1.1', '9.9.9.9']
@@ -28,30 +27,28 @@ def request(input: str) -> str:
     try:
         arecords = resolver.resolve(domain, "A")
         arecords = [str(record) for record in arecords]
-        response["A"] = arecords
+        a_str = "\n".join(arecords)
+        response["A"] = a_str
     except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
-        arecords = []
+        response["A"] = "N/A"
 
     try:
         aaaa_records = resolver.resolve(domain, "AAAA")
         aaaa_records = [str(record) for record in aaaa_records]
-        response["AAAA"] = aaaa_records
+        aaaa_str = "\n".join(aaaa_records)
+        response["AAAA"] = aaaa_str
     except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
-        aaaa_records = []
+        response["AAAA"] = "N/A"
 
-    result["arecord"] = response
-    if response:
-        return result
-    else:
-        return False
+    return response
 
 
 
 
 
 if __name__ == "__main__":
-    from pprint import pprint
     import sys
+    import json
     script_name = sys.argv[0]
     if "help" in sys.argv or "-h" in sys.argv or "--help" in sys.argv:
         print(f"Usage: python3 {script_name} <domain/ip>")
@@ -60,9 +57,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         input = sys.argv[1]
         response = request(input)
-        if response:
-            pprint(response)
-        else:
-            print("No data available.")
+        response = json.dumps(response, indent=4)
+        print(response)
     else:
         print(f"Usage: python3 {script_name} <domain/ip>")
