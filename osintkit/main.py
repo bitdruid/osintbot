@@ -6,6 +6,38 @@ import osintkit.iplookup as iplookup
 import osintkit.arecord as arecord
 import osintkit.helper as helper
 
+def main_template(request_function):
+    """
+    A template function for executing a request function manually from the command line.
+
+    Args:
+        request_function (function): The function to be executed with the input argument.
+
+    Returns:
+        None
+
+    Raises:
+        None
+
+    Example:
+    >>> python3 osintkit/<datarequest>.py <input>
+    """
+    import sys
+    import json
+    script_name = sys.argv[0]
+    if any(arg in sys.argv for arg in ["help", "-h", "--help"]):
+        print(f"Usage: python3 {script_name} <domain/ip>")
+        exit()
+
+    if len(sys.argv) > 1:
+        input = sys.argv[1]
+        response = request_function(input)
+        response = json.dumps(response, indent=4)
+        print(response)
+    else:
+        print(f"Usage: python3 {script_name} <domain/ip>")
+
+
 def main():
     parser = argparse.ArgumentParser(description="OSINT Kit")
     required = parser.add_mutually_exclusive_group(required=True)

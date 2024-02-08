@@ -2,120 +2,133 @@ import ipaddress
 import socket
 import requests
 
+
 def check_online_offline(domain):
-    """check if a domain is online or offline"""
+    """Check if a domain is online or offline."""
     try:
-        response_code = requests.get(domain).status_code
-        if response_code == 200:
-            return True
-        else:
-            return False
-    except:
+        response = requests.head(domain)
+        return response.ok
+    except requests.exceptions.RequestException:
         return False
-    
-    
+
+
 def validate_domain(domain):
-    """validate if a domain is given"""
+    """Validate if a domain is given."""
     try:
         ipaddress.ip_address(domain)
         return False
-    except:
-        pass
-    domain_parts = domain.split(".")
-    if len(domain_parts) > 1:
-        if len(domain_parts[-1]) > 1:
+    except ValueError:
+        domain_parts = domain.split(".")
+        if len(domain_parts) > 1 and len(domain_parts[-1]) > 1:
             return True
         else:
             return False
-    else:
-        return False
-    
-    
+
+
 def validate_ip(ip):
-    """validate if an ip is given"""
+    """Validate if an IP address is given."""
     try:
-        if ipaddress.ip_address(ip).is_private:
+        ip_obj = ipaddress.ip_address(ip)
+        if ip_obj.is_private:
             print("Private IP address given.")
             return False
-        if ipaddress.ip_address(ip):
-            return True
-    except:
+        return True
+    except ValueError:
         return False
 
 
 def validate_primary(input: str) -> bool:
     """
-    Validate if a given input is a domain or ip address.
+    Validate if a given input is a domain or IP address.
 
     Parameters:
-    - input (str): The domain or ip address to validate.
+    - input (str): The domain or IP address to validate.
 
     Returns:
-    - bool: True if the input is a domain or ip address, False if not.
-
+    - bool: True if the input is a domain or IP address, False if not.
     """
-    if validate_domain(input) or validate_ip(input):
-        return True
-    else:
-        return False  
+    return validate_domain(input) or validate_ip(input)
 
 
 def domain_to_ip(domain: str) -> str:
     try:
-        #print("Trying to resolve domain {}.".format(domain))
         if validate_ip(domain):
             return domain
         ip = socket.gethostbyname(domain)
-        #print("IP address for domain {} is {}.".format(domain, ip))
         if validate_ip(ip):
             return ip
         else:
             return False
-    except:
+    except socket.gaierror:
         return False
-    
-    
+
+
 def ip_to_domain(ip: str) -> str:
     try:
-        #print("Trying to resolve ip {}.".format(ip))
         if validate_domain(ip):
             return ip
         domain = socket.gethostbyaddr(ip)[0]
-        #print("Domain for ip {} is {}.".format(ip, domain))
         if validate_domain(domain):
             return domain
         else:
             return False
-    except:
+    except socket.herror:
         return False
-    
+
 
 def get_primary(input: str) -> tuple:
     """
-    Returns the primary domain and ip for a given domain or ip.
+    Returns the primary domain and IP for a given domain or IP.
 
     Parameters:
-    - domain (str): The domain to check.
+    - input (str): The domain or IP to check.
 
     Returns:
-    - tuple: [0] domain, [1] ip
-    - bool: False, False if no domain or ip is given
-
+    - tuple: [0] domain, [1] IP
+    - bool: False, False if no domain or IP is given
     """
     if validate_domain(input):
         ip = domain_to_ip(input)
         if ip:
             return input, ip
-        return False, False
     elif validate_ip(input):
         domain = ip_to_domain(input)
         if domain:
             return domain, input
-        return False, False
-    else:
-        return False, False
+    return False, False
 
 def json_to_string(json_input: str, markdown: bool = False) -> str:
+    """
+    Converts a JSON object to a formatted string representation.
+
+    Parameters:
+        json_input (str): The JSON object to be converted. Can be a dictionary or a string.
+        markdown (bool, optional): Specifies whether the output should be formatted using markdown syntax. Defaults to False.
+
+    Returns:
+        str: The formatted string representation of the JSON object.
+
+    Notes:
+        - If the 'json_input' is not a dictionary, it is returned as is with a newline character appended.
+        - If 'markdown' is True, the output is formatted using markdown syntax, otherwise it is formatted using plain text syntax.
+        - If the 'json_input' is a dictionary, the keys and values are formatted as follows:
+            - Keys are displayed in bold (if markdown is True) or as is (if markdown is False), followed by a colon.
+            - Values are displayed based on their type:
+                - If the value is a dictionary, the subkeys and subvalues are displayed as key-value pairs.
+                - If the value is a list, each item is displayed on a separate line.
+                - If the value is a string, it is displayed as is.
+        - Each key-value pair is displayed within code blocks (if markdown is True) or without code blocks (if markdown is False).
+        - A newline character is added after each key-value pair, except for the last one.
+
+    Examples:
+        >>> json_input = '{"name": "John", "age": 30, "city": "New York"}'
+        >>> json_to_string(json_input)
+        'name:\nJohn\n\nage:\n30\n\ncity:\nNew York\n'
+        
+        >>> json_input = {"name": "John", "age": 30, "city": "New York"}
+        >>> json_to_string(json_input, markdown=True)
+        '***name:***\n```\nJohn\n```\n\n***age:***\n```\n30\n```\n\n***city:***\n```\nNew York\n```\n'
+    """
     if not isinstance(json_input, dict):
         return json_input + "\n"
     

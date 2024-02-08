@@ -12,19 +12,15 @@ api_dict = {
 def query_api(api, ip):
     """Query an API with the given IP. API string format: http://example.com/{placeholder}/otherstuff"""
     api_url = api_dict[api].format(ip=ip)
-    user_agent = "Mozilla/5.0" # some APIs require a user agent else they block the request
-    api_data = requests.get(api_url, headers={"User-Agent": user_agent})
-    if api_data.status_code == 200:
-        return api_data.json()
-    else:
-        return api_data
+    user_agent = "Mozilla/5.0"  # Some APIs require a user agent else they block the request
+    response = requests.get(api_url, headers={"User-Agent": user_agent})
+    return response.json() if response.status_code == 200 else response
 
 
 
 
 
 def filter_response(json_response):
-    """Filter the response for the most relevant data."""
     valid_keys = [
         "country",
         "region",
@@ -40,11 +36,11 @@ def filter_response(json_response):
         "lon": "longitude",
     }
     filtered_response = {}
-    for value in json_response:
-        if value in valid_keys:
-            filtered_response[value] = json_response[value]
-        elif value in rename_keys:
-            filtered_response[rename_keys[value]] = json_response[value]
+    for key, value in json_response.items():
+        if key in valid_keys:
+            filtered_response[key] = value
+        elif key in rename_keys:
+            filtered_response[rename_keys[key]] = value
     return filtered_response
 
 
@@ -87,17 +83,5 @@ def request(input):
 
 
 if __name__ == "__main__":
-    import sys
-    import json
-    script_name = sys.argv[0]
-    if "help" in sys.argv or "-h" in sys.argv or "--help" in sys.argv:
-        print(f"Usage: python3 {script_name} <domain/ip>")
-        exit()
-
-    if len(sys.argv) > 1:
-        input = sys.argv[1]
-        response = request(input)
-        response = json.dumps(response, indent=4)
-        print(response)
-    else:
-        print(f"Usage: python3 {script_name} <domain/ip>")
+    from osintkit.main import main_template
+    main_template(request)

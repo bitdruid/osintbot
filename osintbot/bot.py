@@ -18,7 +18,6 @@ intents.members = True
 
 bot = commands.Bot(command_prefix='/', intents=intents)
 bot.help_command = None
-modes = ['mention_message', 'direct_message', 'channel_message']
 
 document_path = "documents/"
 os.makedirs(document_path, exist_ok=True)
@@ -26,8 +25,8 @@ os.makedirs(document_path, exist_ok=True)
 log_path = "logs/"
 os.makedirs(log_path, exist_ok=True)
 
-db = db.Database()
-mail = mail.Mail()
+db_instance = db.Database()
+db_instance = mail.Mail()
 
 class Environment:
     def __init__(self):
@@ -53,22 +52,22 @@ def create_document(filename, content):
     document = open(document_path + filename, "rb")
     return document
 
-async def output_text_result(ctx, input: str, result: str, request: str):
-    message = f"{request.upper()} data for {input}:\n\n" + kit_helper.json_to_string(result, markdown=True)
+async def output_text_result(ctx, input: str, result: str, request_name: str):
+    message = f"{request_name.upper()} data for {input}:\n\n" + kit_helper.json_to_string(result, markdown=True)
     await send.message(ctx, message)
 
-async def output_file_result(ctx, input, result, key):
+async def output_file_result(ctx, input, result, request_name):
     if isinstance(result, dict):
         result = kit_helper.json_to_string(result)
-    document = create_document(key + "_" + input + ".txt", result)
-    await send.message(ctx, f"{key.upper()} data for {input}:", file=discord.File(document, filename=key + "_" + input + ".txt"))
+    document = create_document(request_name + "_" + input + ".txt", result)
+    await send.message(ctx, f"{request_name.upper()} data for {input}:", file=discord.File(document, filename=request_name + "_" + input + ".txt"))
      
 async def initialize():
     # check if bot-channel exists and create it if not
     for guild in bot.guilds:
         # insert guild leader into database
-        db.db_insert_leader(guild.owner.id, guild.owner.name, guild.id, guild.name)
-        db.db_insert_global_config(guild.id, guild.name)
+        db_instance.db_insert_leader(guild.owner.id, guild.owner.name, guild.id, guild.name)
+        db_instance.db_insert_global_config(guild.id, guild.name)
         for channel in guild.channels:
             if channel.name == Environment().bot_channel:
                 return
@@ -290,27 +289,27 @@ async def config(ctx, command=None, key=None, value=None):
             await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/config mode <mode>:\n" + mode)
             return
         if key == "dm":
-            db.db_set_user_config(ctx.author.id, ctx.guild.id, "tbl_user_response_mode", "dm")
+            db_instance.db_set_user_config(ctx.author.id, ctx.guild.id, "tbl_user_response_mode", "dm")
             await ctx.send("{}".format(ctx.author.mention) + "\n" + "Bot responses will be sent as direct message for user" + ctx.author.mention)
         elif key == "mm":
-            db.db_set_user_config(ctx.author.id, ctx.guild.id, "tbl_user_response_mode", "mm")
+            db_instance.db_set_user_config(ctx.author.id, ctx.guild.id, "tbl_user_response_mode", "mm")
             await ctx.send("{}".format(ctx.author.mention) + "\n" + "Bot responses will be public sent as mention message for user" + ctx.author.mention)
     if command == "show":
-        if db.db_isleader(ctx.author.id, ctx.guild.id):
-            config = db.db_get_global_config(ctx.guild.id)
+        if db_instance.db_isleader(ctx.author.id, ctx.guild.id):
+            config = db_instance.db_get_global_config(ctx.guild.id)
             config = kit_helper.json_to_string(config)
             await ctx.send("{}".format(ctx.author.mention) + "\n" + "Configuration for:\n" + config)
         else:
-            config = db.db_get_user_config(ctx.author.id, ctx.guild.id)
+            config = db_instance.db_get_user_config(ctx.author.id, ctx.guild.id)
             config = kit_helper.json_to_string(config)
             await ctx.send("{}".format(ctx.author.mention) + "\n" + "Configuration for:\n" + config)
-    if db.db_isleader(ctx.author.id, ctx.guild.id):
+    if db_instance.db_isleader(ctx.author.id, ctx.guild.id):
         if command == "userdump":
-            dump = db.db_dump(ctx.guild.id, "user")
+            dump = db_instance.db_dump(ctx.guild.id, "user")
             document = create_document("dbdump" + "_" + ctx.guild.name + ".txt", dump)
             await ctx.send("{}".format(ctx.author.mention) + "\n" + "Database dump for {}:".format(ctx.guild.name), file=discord.File(document, filename="dbdump" + "_" + ctx.guild.name + ".txt"))
         if command == "confdump":
-            dump = db.db_dump(ctx.guild.id, "conf")
+            dump = db_instance.db_dump(ctx.guild.id, "conf")
             document = create_document("confdump" + "_" + ctx.guild.name + ".txt", dump)
             await ctx.send("{}".format(ctx.author.mention) + "\n" + "Configuration dump for {}:".format(ctx.guild.name), file=discord.File(document, filename="confdump" + "_" + ctx.guild.name + ".txt"))
         if command == "globalmode":
@@ -318,13 +317,13 @@ async def config(ctx, command=None, key=None, value=None):
                 await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/config globalmode <mode>:\n" + globalmode)
                 return
             if key == "dm":
-                db.db_set_global_config(ctx.guild.id, ctx.author.id, "tbl_global_response_mode", "dm")
+                db_instance.db_set_global_config(ctx.guild.id, ctx.author.id, "tbl_global_response_mode", "dm")
                 await ctx.send("{}".format(ctx.author.mention) + "\n" + "Bot responses will be sent as direct message.")
             elif key == "mm":
-                db.db_set_global_config(ctx.guild.id, ctx.author.id, "tbl_global_response_mode", "mm")
+                db_instance.db_set_global_config(ctx.guild.id, ctx.author.id, "tbl_global_response_mode", "mm")
                 await ctx.send("{}".format(ctx.author.mention) + "\n" + "Bot responses will be public sent as mention message.")
             elif key == "off":
-                db.db_set_global_config(ctx.guild.id, ctx.author.id, "tbl_global_response_mode", "off")
+                db_instance.db_set_global_config(ctx.guild.id, ctx.author.id, "tbl_global_response_mode", "off")
                 await ctx.send("{}".format(ctx.author.mention) + "\n" + "Bot responses will be sent like the user specified for himself.")
     else:
         await ctx.send("{}".format(ctx.author.mention) + "\n" + "You are not the leader of this server and not allowed to use this command.")
@@ -365,7 +364,7 @@ async def on_message(message):
         return
     
     # add the user to the database
-    db.db_insert_user(message.author.id, message.author.name, message.guild.id, message.guild.name)
+    db_instance.db_insert_user(message.author.id, message.author.name, message.guild.id, message.guild.name)
     
     if bot.user.mentioned_in(message):
         # remove mention from message

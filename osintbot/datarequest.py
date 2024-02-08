@@ -12,3 +12,4 @@ def full_report(input):
     whois_data = f"<<<<<<<<<< WHOIS DATA FOR {input} >>>>>>>>>>" + "\n\n" + kit_helper.json_to_string(whois.request(input))
     report_data += iplookup_data + "\n" + arecord_data + "\n" + geoip_data + "\n" + whois_data
     return report_data
+

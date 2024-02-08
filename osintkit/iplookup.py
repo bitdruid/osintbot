@@ -4,55 +4,32 @@ import osintkit.helper as helper
 import osintkit.whois as whois
 
 def iplookup(ip, domain):
-    """Query on ipinfo and return result for asn, isp, country."""
+    """Query on ipinfo."""
     ip_json = {}
-    ip_json["primary ipv4"] = ip
     try:
+        ip_json["primary ipv4"] = ip
         ip_json["primary ipv6"] = socket.getaddrinfo(ip, None, socket.AF_INET6)[0][4][0]
     except:
         pass
-    api_data = requests.get("http://ipinfo.io/" + ip + "/json")
-    api_data = api_data.json()
-    for key in api_data:
-        if key == "hostname":
-            ip_json["Hostname"] = api_data[key]
-        if key == "country":
-            ip_json["Country"] = api_data[key]
-        elif key == "org":
-            ip_json["ASN and ISP"] = api_data[key]
-    registrar = whois.whois_registrar(domain)
+    api_data = requests.get(f"http://ipinfo.io/{ip}/json").json()
+    if "hostname" in api_data:
+        ip_json["Hostname"] = api_data["hostname"]
+    if "country" in api_data:
+        ip_json["Country"] = api_data["country"]
+    if "org" in api_data:
+        ip_json["ASN and ISP"] = api_data["org"]
+    registrar = whois.request(domain)["registrar"]
     if registrar:
         ip_json["Domain Registrar"] = registrar
-    return ip_json
+    return ip_json if ip_json else "N/A"
 
 def request(input):
     """Return iplookup data."""
     domain, ip = helper.get_primary(input)
     if not domain or not ip:
         return "N/A"
-    iplookup_data = iplookup(ip, domain)
-    if iplookup_data:
-        return iplookup_data
-    else:
-        return "N/A"
-    
+    return iplookup(ip, domain) or "N/A"
 
-
-
-    
 if __name__ == "__main__":
-    import sys
-    import json
-    script_name = sys.argv[0]
-    if "help" in sys.argv or "-h" in sys.argv or "--help" in sys.argv:
-        print(f"Usage: python3 {script_name} <domain/ip>")
-        exit()
-
-    if len(sys.argv) > 1:
-        input = sys.argv[1]
-        response = request(input)
-        response = json.dumps(response, indent=4)
-        print(response)
-    else:
-        print(f"Usage: python3 {script_name} <domain/ip>")
-
+    from osintkit.main import main_template
+    main_template(request)
