@@ -210,15 +210,21 @@ class Mail:
 
 
     def parse_subject(self, mail):
+        import shlex
         try:
             subject = mail['subject']
             arguments = subject.split(' ')
             if len(arguments) != 2:
-                raise Exception('Invalid subject')
-            self.FUNCTION = arguments[0].lower()
-            self.INPUT = arguments[1].lower()
+                raise ValueError('Invalid subject')
+            # only allow alphanumeric characters, hyphen, and period
+            allowed_chars = 'abcdefghijklmnopqrstuvwxyz0123456789.-'
+            if not all(char in allowed_chars for char in arguments[0].lower()) or not all(char in allowed_chars for char in arguments[1].lower()):
+                raise ValueError('Invalid subject')
+            # filter anyway to prevent injection
+            self.FUNCTION = shlex.quote(''.join(filter(lambda char: char in allowed_chars, arguments[0].lower())))
+            self.INPUT = shlex.quote(''.join(filter(lambda char: char in allowed_chars, arguments[1].lower())))
             return True
-        except:
+        except ValueError:
             message = 'Invalid subject. Please use the following format: <function> <input>. Example: "whois example.com"'
             commands = "Available commands:\n" \
             " whois <domain/ip> - Retrieve whois data for a domain or IP address\n" \
@@ -239,15 +245,19 @@ class Mail:
             if self.FUNCTION == 'whois':
                 import osintkit.whois as whois
                 response = whois.request(self.INPUT)
-            if self.FUNCTION == 'geoip':
+            elif self.FUNCTION == 'geoip':
                 import osintkit.geoip as geoip
                 response = geoip.request(self.INPUT)
-            if self.FUNCTION == 'iplookup':
+            elif self.FUNCTION == 'iplookup':
                 import osintkit.iplookup as iplookup
                 response = iplookup.request(self.INPUT)
-            if self.FUNCTION == 'arecord':
+            elif self.FUNCTION == 'arecord':
                 import osintkit.arecord as arecord
                 response = arecord.request(self.INPUT)
+            elif self.FUNCTION == 'report':
+                response = datarequest.full_report(self.INPUT)
+            else:
+                response = "Invalid function"
             self.log(f"--> Running function: '{self.FUNCTION}' with input: '{self.INPUT}'")
             return kit_helper.json_to_string(response)
         
