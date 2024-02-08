@@ -10,10 +10,6 @@ import db
 import datarequest
 
 import osintkit.helper as kit_helper
-import osintkit.whois
-import osintkit.geoip
-import osintkit.iplookup
-import osintkit.arecord
 
 class Mail:
     """
@@ -223,8 +219,14 @@ class Mail:
             self.INPUT = arguments[1].lower()
             return True
         except:
-            message = 'Invalid subject. Please use the following format: <function> <input>. Send an email with subject help/start for more information.'
-            self.send_email(mail['from'], 'osintbot invalid subject: "' + mail['subject'] + '"', message)
+            message = 'Invalid subject. Please use the following format: <function> <input>. Example: "whois example.com"'
+            commands = "Available commands:\n" \
+            " whois <domain/ip> - Retrieve whois data for a domain or IP address\n" \
+            " iplookup <domain/ip> - Retrieve IP lookup data for a domain or IP address\n" \
+            " geoip <domain/ip> - Retrieve GeoIP data for a domain or IP address\n" \
+            " arecord <domain> - Retrieve A record data for a domain\n" \
+            " report <domain/ip> - Retrieve all available data for a domain or IP address"
+            self.send_email(mail['from'], 'osintbot invalid subject: "' + mail['subject'] + '"', message + '\n\n' + commands)
             self.delete_email(mail['id'])
             return False
     
@@ -233,20 +235,21 @@ class Mail:
 
 
     def run_function(self):
-        function_mapping = {
-            'whois': osintkit.whois.request,
-            'geoip': osintkit.geoip.request,
-            'iplookup': osintkit.iplookup.request,
-            'arecord': osintkit.arecord.request,
-            'report': datarequest.full_report,
-            'help': lambda input: {'help': 'Send an email with the subject <function> <input>:\nfunction: whois, geoip, iplookup, arecord\ninput: domain or IP address'}
-        }
         if self.FUNCTION and self.INPUT:
-            function = function_mapping.get(self.FUNCTION)
-            if function:
-                self.log(f"--> Running function: '{self.FUNCTION}' with input: '{self.INPUT}'")
-                response = function(self.INPUT)
-                return kit_helper.json_to_string(response)
+            if self.FUNCTION == 'whois':
+                import osintkit.whois as whois
+                response = whois.request(self.INPUT)
+            if self.FUNCTION == 'geoip':
+                import osintkit.geoip as geoip
+                response = geoip.request(self.INPUT)
+            if self.FUNCTION == 'iplookup':
+                import osintkit.iplookup as iplookup
+                response = iplookup.request(self.INPUT)
+            if self.FUNCTION == 'arecord':
+                import osintkit.arecord as arecord
+                response = arecord.request(self.INPUT)
+            self.log(f"--> Running function: '{self.FUNCTION}' with input: '{self.INPUT}'")
+            return kit_helper.json_to_string(response)
         
     def exception(self, e):
         self.log(f"!-- Error function: {sys.exc_info()[-1].tb_frame.f_code.co_name}")

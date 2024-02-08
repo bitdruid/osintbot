@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import os
 import sys
+import time
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -26,7 +27,7 @@ log_path = "logs/"
 os.makedirs(log_path, exist_ok=True)
 
 db_instance = db.Database()
-db_instance = mail.Mail()
+mail_instance = mail.Mail()
 
 class Environment:
     def __init__(self):
@@ -64,12 +65,14 @@ async def output_file_result(ctx, input, result, request_name):
      
 async def initialize():
     # check if bot-channel exists and create it if not
+    ready_message = f"`{time.strftime('%d/%m/%Y %H:%M:%S')}` - `{Environment().bot_name}` ready to serve."
     for guild in bot.guilds:
         # insert guild leader into database
         db_instance.db_insert_leader(guild.owner.id, guild.owner.name, guild.id, guild.name)
         db_instance.db_insert_global_config(guild.id, guild.name)
         for channel in guild.channels:
             if channel.name == Environment().bot_channel:
+                await channel.send(ready_message)
                 return
         overwrites = {
             guild.owner: bot.PermissionOverwrite(read_messages=True),
@@ -78,6 +81,7 @@ async def initialize():
         }
         channel = await guild.create_text_channel(Environment().bot_channel, overwrites=overwrites)
         await channel.send("{}".format(guild.owner.mention) + "\n" + f"I'm {Environment().bot_name} and created this private channel for interaction. Configure permissions for this channel as you like.\nGet started with `/help` or mention `@{Environment().bot_name} help` in this channel.")
+        await channel.send(ready_message)
 
 
 
