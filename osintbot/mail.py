@@ -79,12 +79,12 @@ class Mail:
         current_time = time.time()
         self.imap_connect()
         while True:
-            emails = self.fetch_email()
-            if emails:
-                self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Emails found: {len(emails)}")
-            self.delete_expired_email(emails)
-            emails = self.fetch_email()
-            mail_dict = self.read_email(emails)
+            mail_dict = self.fetch_email()
+            self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Emails found: {len(mail_dict)}") if mail_dict else None
+            self.delete_expired_email(mail_dict) if mail_dict else None
+            mail_dict = self.fetch_email()
+            self.delete_excessed_mails(mail_dict) if mail_dict else None
+            mail_dict = self.fetch_email()
             if mail_dict:
                 for mail_id in mail_dict:
                     mail_id = mail_dict[mail_id]['id']
@@ -103,7 +103,7 @@ class Mail:
                 self.imap_disconnect()
                 current_time = time.time()
                 self.imap_connect()
-            time.sleep(10)
+            time.sleep(20)
 
 
 
@@ -135,15 +135,6 @@ class Mail:
 
 
 
-    def fetch_email(self):
-        try:
-            self.IMAP.select('inbox')
-            status, messages = self.IMAP.search(None, '(TO ' + self.mail_user + ')')
-            messages = messages[0].split()
-            return messages
-        except Exception as e:
-            self.log('!-- Email failed to fetch')
-            self.exception(e)
 
     def delete_email(self, mail: list or bytes) -> None:
         try:
@@ -161,20 +152,51 @@ class Mail:
             self.log('!-- Email failed to delete')
             self.exception(e)
         
-    def delete_expired_email(self, messages: list) -> None:
-        expired = False
+    def delete_expired_email(self, mail_dict: dict) -> None:
         expired_emails = []
-        for mail_id in messages:
-            mail_time = self.IMAP.fetch(mail_id, '(INTERNALDATE)')[1][0].decode().split('INTERNALDATE ')[1].split('"')[1].split(' +')[0].strip()
-            mail_from = self.IMAP.fetch(mail_id, '(BODY[HEADER.FIELDS (FROM)])')[1][0][1].decode().split('<')[1].split('>')[0].strip()
-            mail_subject = self.IMAP.fetch(mail_id, '(BODY[HEADER.FIELDS (SUBJECT)])')[1][0][1].decode().split('Subject: ')[1].removesuffix('\r\n\r\n').strip()
+        for mail_id in mail_dict:
+            mail_id = mail_dict[mail_id]
+            mail_time = mail_id['time']
             if time.time() - time.mktime(time.strptime(mail_time, '%d-%b-%Y %H:%M:%S')) > self.mail_expire:
-                self.log(f"--> Email {mail_id} expired. From: {mail_from}, Subject: {mail_subject}, Time: {mail_time}")
-                expired = True
+                self.log(f"--> Expired email {mail_id['id']}. From: {mail_id['from']}, Subject: {mail_id['subject']}, Time: {mail_time}")
                 expired_emails.append(mail_id)
-            self.db.mail_insert(expired, mail_from, mail_subject)
+            self.db.mail_insert(True, mail_id['from'], mail_id['subject'])
         if expired_emails:
             self.delete_email(expired_emails)
+
+    def delete_excessed_mails(self, mail_dict: dict) -> None:
+        excessed_sender = []
+        excessed_mails = []
+        oldest_mail_by_sender = {}
+        # get the oldest mail by each sender
+        for mail_id in mail_dict:
+            mail_data = mail_dict[mail_id]
+            if mail_data['from'] in oldest_mail_by_sender:
+                if mail_data['time'] < oldest_mail_by_sender[mail_data['from']]['time']:
+                    oldest_mail_by_sender[mail_data['from']] = {'id': mail_data['id'], 'time': mail_data['time']}
+            else:
+                oldest_mail_by_sender[mail_data['from']] = {'id': mail_data['id'], 'time': mail_data['time']}
+        # add all remaining mails of the sender to the excessed_mails list
+        for mail_id in mail_dict:
+            mail_data = mail_dict[mail_id]
+            if mail_data['from'] in oldest_mail_by_sender:
+                if mail_data['id'] != oldest_mail_by_sender[mail_data['from']]['id']:
+                    self.log(f"--> Excessed email. From: {mail_data['from']}, Subject: {mail_data['subject']}, Time: {mail_data['time']}")
+                    excessed_mails.append(mail_id)
+                    if mail_data['from'] not in excessed_sender:
+                        excessed_sender.append(mail_data['from'])
+        # inform the sender about the excessed emails
+        for sender in excessed_sender:
+            message = f"Your emails are currently excessed. Please wait until your first email was processed."
+            deleted_mails = []
+            for mail_id in excessed_mails:
+                mail_data = mail_dict[mail_id]
+                deleted_mails.append(f"{mail_data['time']} --> {mail_data['subject']}")
+            message += f"\n\nThe following emails were deleted:\n{chr(10).join(deleted_mails)}"
+            self.send_email(sender, 'osintbot excessed emails', message)
+        # remove all remaining mails of the sender
+        self.log(f"--> Excessed emails found: {len(excessed_mails)}")
+        self.delete_email(excessed_mails)
 
 
 
@@ -191,18 +213,20 @@ class Mail:
             self.log(f"!-- Email failed to send. To: {to}, Subject: {subject}")
             self.exception(e)
 
-    def read_email(self, messages: list) -> dict:
+    def fetch_email(self):
         try:
+            self.IMAP.select('inbox')
+            status, messages = self.IMAP.search(None, '(TO ' + self.mail_user + ')')
+            messages = messages[0].split()
             mail_dict = {}
             for mail_id in messages:
-                mail_id = mail_id.decode()
                 mail_time = self.IMAP.fetch(mail_id, '(INTERNALDATE)')[1][0].decode().split('INTERNALDATE ')[1].split('"')[1].split(' +')[0].strip()
                 mail_from = self.IMAP.fetch(mail_id, '(BODY[HEADER.FIELDS (FROM)])')[1][0][1].decode().split('<')[1].split('>')[0].strip()
                 mail_subject = self.IMAP.fetch(mail_id, '(BODY[HEADER.FIELDS (SUBJECT)])')[1][0][1].decode().split('Subject: ')[1].removesuffix('\r\n\r\n').strip()
                 mail_dict[mail_id] = {'id': mail_id, 'from': mail_from, 'subject': mail_subject, 'time': mail_time}
             return mail_dict
         except Exception as e:
-            self.log(f"!-- Email failed to read. Mail: {mail_id}")
+            self.log('!-- Email failed to fetch')
             self.exception(e)
 
 
@@ -235,10 +259,11 @@ class Mail:
             self.send_email(mail['from'], 'osintbot invalid subject: "' + mail['subject'] + '"', message + '\n\n' + commands)
             self.delete_email(mail['id'])
             return False
+
+            
+
+
     
-
-
-
 
     def run_function(self):
         if self.FUNCTION and self.INPUT:
