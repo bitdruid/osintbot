@@ -21,23 +21,36 @@ if __name__ == "__main__":
 
         def discord_bot(self):
             try:
-                self.bot_token = os.getenv('BOT_TOKEN') if os.getenv('BOT_TOKEN') else ValueError('No bot token provided')
-                self.bot_name = os.getenv('BOT_NAME') if os.getenv('BOT_NAME') else "osintbot"
-                self.bot_channel = os.getenv('BOT_CHANNEL') if os.getenv('BOT_CHANNEL') else "osint"
+                self.bot_token = os.getenv('BOT_TOKEN')
+                if self.bot_token is None:
+                    raise ValueError('No bot token provided')
+                self.bot_name = os.getenv('BOT_NAME') or "osintbot"
+                self.bot_channel = os.getenv('BOT_CHANNEL') or "osint"
                 self.DISCORD_BOT = True
             except ValueError as e:
                 print(e)
             
         def mail_bot(self):
             try:
-                self.mail_user = os.getenv('MAIL_USER') if os.getenv('MAIL_USER') else ValueError('No email provided')
-                self.mail_password = os.getenv('MAIL_PASS') if os.getenv('MAIL_PASS') else ValueError('No password provided')
-                self.smtp_server = os.getenv('MAIL_SMTP_SERVER') if os.getenv('MAIL_SMTP_SERVER') else ValueError('No SMTP server provided')
-                self.smtp_port = os.getenv('MAIL_SMTP_PORT') if os.getenv('MAIL_SMTP_PORT') else ValueError('No SMTP port provided')
-                self.imap_server = os.getenv('MAIL_IMAP_SERVER') if os.getenv('MAIL_IMAP_SERVER') else ValueError('No IMAP server provided')
-                self.imap_port = os.getenv('MAIL_IMAP_PORT') if os.getenv('MAIL_IMAP_PORT') else ValueError('No IMAP port provided')
+                self.mail_user = os.getenv('MAIL_USER')
+                if self.mail_user is None:
+                    raise ValueError('No email provided')
+                self.mail_password = os.getenv('MAIL_PASS')
+                if self.mail_password is None:
+                    raise ValueError('No password provided')
+                self.smtp_server = os.getenv('MAIL_SMTP_SERVER')
+                if self.smtp_server is None:
+                    raise ValueError('No SMTP server provided')
+                self.smtp_port = os.getenv('MAIL_SMTP_PORT')
+                if self.smtp_port is None:
+                    raise ValueError('No SMTP port provided')
+                self.imap_server = os.getenv('MAIL_IMAP_SERVER')
+                if self.imap_server is None:
+                    raise ValueError('No IMAP server provided')
+                self.imap_port = os.getenv('MAIL_IMAP_PORT')
+                if self.imap_port is None:
+                    raise ValueError('No IMAP port provided')
                 self.MAIL_BOT = True
-                return True
             except ValueError as e:
                 print(e)
 

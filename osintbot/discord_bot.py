@@ -27,10 +27,6 @@ def main(env_instance, db_instance):
     log_path = "logs/"
     os.makedirs(log_path, exist_ok=True)
 
-    bot_token = env_instance.bot_token
-    bot_name = env_instance.bot_name
-    bot_channel = env_instance.bot_channel
-    mail_user = env_instance.mail_user if env_instance.MAIL_BOT else False
     about_message = \
         "This bot was created by bitdruid.\n" + \
         "Current Version is: {}\n\n".format(__version__) + \
@@ -55,13 +51,13 @@ def main(env_instance, db_instance):
         
     async def initialize():
         # check if bot-channel exists and create it if not
-        ready_message = f"`{time.strftime('%d/%m/%Y %H:%M:%S')}` - `{bot_name}` ready to serve."
+        ready_message = f"`{time.strftime('%d/%m/%Y %H:%M:%S')}` - `{env_instance.bot_name}` ready to serve."
         for guild in bot.guilds:
             # insert guild leader into database
             db_instance.db_insert_leader(guild.owner.id, guild.owner.name, guild.id, guild.name)
             db_instance.db_insert_global_config(guild.id, guild.name)
             for channel in guild.channels:
-                if channel.name == bot_channel:
+                if channel.name == env_instance.bot_channel:
                     await channel.send(ready_message)
                     return
             overwrites = {
@@ -69,8 +65,8 @@ def main(env_instance, db_instance):
                 guild.me: bot.PermissionOverwrite(read_messages=True),
                 guild.default_role: bot.PermissionOverwrite(read_messages=False)
             }
-            channel = await guild.create_text_channel(bot_channel, overwrites=overwrites)
-            await channel.send("{}".format(guild.owner.mention) + "\n" + f"I'm {bot_name} and created this private channel for interaction. Configure permissions for this channel as you like.\nGet started with `/help` or mention `@{bot_name} help` in this channel.")
+            channel = await guild.create_text_channel(env_instance.bot_channel, overwrites=overwrites)
+            await channel.send("{}".format(guild.owner.mention) + "\n" + f"I'm {env_instance.bot_name} and created this private channel for interaction. Configure permissions for this channel as you like.\nGet started with `/help` or mention `@{env_instance.bot_name} help` in this channel.")
             await channel.send(ready_message)
 
 
@@ -115,15 +111,15 @@ def main(env_instance, db_instance):
             commands_message += commands[command] + "\n"
         message = \
             "\n\n" + \
-            "__I am {} and i can help you with this:__".format(bot_name) + \
+            "__I am {} and i can help you with this:__".format(env_instance.bot_name) + \
             "\n\n" + \
             commands_message + \
             "\n" + \
-            "You can also mention me to run commands.\nExample: `@{} whois example.com`".format(bot_name)
-        if mail_user:
+            "You can also mention me to run commands.\nExample: `@{} whois example.com`".format(env_instance.bot_name)
+        if env_instance.mail_user:
             message += \
                 "\n\n" + \
-                "Further you can write a mail to `{}` with the subject `<command> <input>` to get the result as a mail.".format(mail_user)
+                "Further you can write a mail to `{}` with the subject `<command> <input>` to get the result as a mail.".format(env_instance.mail_user)
         await ctx.send("{}".format(ctx.author.mention) + message)
 
 
@@ -239,7 +235,7 @@ def main(env_instance, db_instance):
 
     @bot.command(name='prune', description='Prunes messages from the osint-channel')
     async def prune(ctx):
-        if ctx.channel.name == bot_channel:
+        if ctx.channel.name == env_instance.bot_channel:
             count_history = 0
             async for message in ctx.channel.history(limit=None):
                 count_history += 1
@@ -354,7 +350,7 @@ def main(env_instance, db_instance):
         if message.guild is None:
             await message.channel.send(f"Please communicate in the bot-channel.")
             return
-        if message.channel.name != bot_channel:
+        if message.channel.name != env_instance.bot_channel:
             return
         
         # add the user to the database
@@ -393,7 +389,7 @@ def main(env_instance, db_instance):
 
 
 
-    bot.run(bot_token)
+    bot.run(env_instance.bot_token)
 
 if __name__ == "__main__":
     main()

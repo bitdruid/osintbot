@@ -56,12 +56,7 @@ class Mailbot:
     def __init__(self, env_instance, db_instance):
         self.mail_expire = 360
         self.connection_expire = 3600
-        self.mail_user = env_instance.mail_user
-        self.mail_password = env_instance.mail_password
-        self.smtp_server = env_instance.smtp_server
-        self.smtp_port = env_instance.smtp_port
-        self.imap_server = env_instance.imap_server
-        self.imap_port = env_instance.imap_port
+        self.env_instance = env_instance
         self.db_instance = db_instance
 
 
@@ -97,7 +92,7 @@ class Mailbot:
                     self.delete_email(mail_id)
 
             if time.time() - current_time > self.connection_expire:
-                self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Connection expired. Reconnecting to IMAP server {self.imap_server}.")
+                self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Connection expired. Reconnecting to IMAP server {self.env_instance.imap_server}.")
                 self.imap_disconnect()
                 current_time = time.time()
                 self.imap_connect()
@@ -109,8 +104,8 @@ class Mailbot:
 
     def imap_connect(self):
         try:
-            self.IMAP = imaplib.IMAP4_SSL(self.imap_server)
-            self.IMAP.login(self.mail_user, self.mail_password)
+            self.IMAP = imaplib.IMAP4_SSL(self.env_instance.imap_server)
+            self.IMAP.login(self.env_instance.mail_user, self.env_instance.mail_password)
         except Exception as e:
             self.log('!-- IMAP connection failed')
             self.exception(e)
@@ -120,9 +115,9 @@ class Mailbot:
 
     def smtp_connect(self):
         try:
-            self.SMTP = smtplib.SMTP(self.smtp_server, self.smtp_port)
+            self.SMTP = smtplib.SMTP(self.env_instance.smtp_server, self.env_instance.smtp_port)
             self.SMTP.starttls()
-            self.SMTP.login(self.mail_user, self.mail_password)
+            self.SMTP.login(self.env_instance.mail_user, self.env_instance.mail_password)
         except Exception as e:
             self.log('!-- SMTP connection failed')
             self.exception(e)
@@ -211,7 +206,7 @@ class Mailbot:
         try:
             self.smtp_connect()
             message = f'Subject: {subject}\n\n{message}'
-            self.SMTP.sendmail(self.mail_user, to, message.encode('utf-8'))
+            self.SMTP.sendmail(self.env_instance.mail_user, to, message.encode('utf-8'))
             self.SMTP.quit()
             self.log(f"--> Response sent successfully. To: {to}, Subject: {subject}")
         except Exception as e:
@@ -221,7 +216,7 @@ class Mailbot:
     def fetch_email(self):
         try:
             self.IMAP.select('inbox')
-            status, messages = self.IMAP.search(None, '(TO ' + self.mail_user + ')')
+            status, messages = self.IMAP.search(None, '(TO ' + self.env_instance.mail_user + ')')
             messages = messages[0].split()
             mail_dict = {}
             for mail_id in messages:
