@@ -96,7 +96,7 @@ class Mailbot:
                 self.imap_disconnect()
                 current_time = time.time()
                 self.imap_connect()
-            time.sleep(20)
+            time.sleep(30)
 
 
 
