@@ -1,4 +1,4 @@
-import db
+import osintbot.db as db
 
 db = db.Database()
 

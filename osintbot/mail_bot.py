@@ -6,12 +6,12 @@ import time
 import smtplib
 import imaplib
 
-import db
-import datarequest
+import osintbot.db as db
+import osintbot.datarequest as datarequest
 
 import osintkit.helper as kit_helper
 
-class Mail:
+class Mailbot:
     """
     Class representing an email client.
 
@@ -53,24 +53,22 @@ class Mail:
     FUNCTION = None
     INPUT = None
 
-    def __init__(self):
+    def __init__(self, env_instance, db_instance):
         self.mail_expire = 360
         self.connection_expire = 3600
-        self.mail_user = os.getenv('MAIL_USER') if os.getenv('MAIL_USER') else sys.exit('No email provided')
-        self.mail_password = os.getenv('MAIL_PASS') if os.getenv('MAIL_PASS') else sys.exit('No password provided')
-        self.smtp_server = os.getenv('MAIL_SMTP_SERVER') if os.getenv('MAIL_SMTP_SERVER') else sys.exit('No SMTP server provided')
-        self.smtp_port = os.getenv('MAIL_SMTP_PORT') if os.getenv('MAIL_SMTP_PORT') else sys.exit('No SMTP port provided')
-        self.imap_server = os.getenv('MAIL_IMAP_SERVER') if os.getenv('MAIL_IMAP_SERVER') else sys.exit('No IMAP server provided')
-        self.imap_port = os.getenv('MAIL_IMAP_PORT') if os.getenv('MAIL_IMAP_PORT') else sys.exit('No IMAP port provided')
-        self.db = db.Database()
-        mail_thread = threading.Thread(target=self.imap_loop)
-        mail_thread.start()
+        self.mail_user = env_instance.mail_user
+        self.mail_password = env_instance.mail_password
+        self.smtp_server = env_instance.smtp_server
+        self.smtp_port = env_instance.smtp_port
+        self.imap_server = env_instance.imap_server
+        self.imap_port = env_instance.imap_port
+        self.db_instance = db_instance
 
 
 
 
 
-    def imap_loop(self):
+    def mail_run(self):
         """
         Continuously loops and checks for new emails using IMAP protocol.
         If a new email is found, it parses the subject, sends a response email, and deletes the original email.
@@ -153,50 +151,57 @@ class Mail:
             self.exception(e)
         
     def delete_expired_email(self, mail_dict: dict) -> None:
-        expired_emails = []
-        for mail_id in mail_dict:
-            mail_id = mail_dict[mail_id]
-            mail_time = mail_id['time']
-            if time.time() - time.mktime(time.strptime(mail_time, '%d-%b-%Y %H:%M:%S')) > self.mail_expire:
-                self.log(f"--> Expired email {mail_id['id']}. From: {mail_id['from']}, Subject: {mail_id['subject']}, Time: {mail_time}")
-                expired_emails.append(mail_id)
-            self.db.mail_insert(True, mail_id['from'], mail_id['subject'])
-        if expired_emails:
-            self.delete_email(expired_emails)
-
+        try:
+            expired_emails = []
+            for mail_id in mail_dict:
+                mail_id = mail_dict[mail_id]
+                mail_time = mail_id['time']
+                if time.time() - time.mktime(time.strptime(mail_time, '%d-%b-%Y %H:%M:%S')) > self.mail_expire:
+                    self.log(f"--> Expired email {mail_id['id']}. From: {mail_id['from']}, Subject: {mail_id['subject']}, Time: {mail_time}")
+                    expired_emails.append(mail_id)
+                self.db_instance.mail_insert(True, mail_id['from'], mail_id['subject'])
+            if expired_emails:
+                self.delete_email(expired_emails)
+        except Exception as e:
+            self.log('!-- Could not sort expired emails')
+            self.exception(e)
     def delete_excessed_mails(self, mail_dict: dict) -> None:
-        excessed_sender = []
-        excessed_mails = []
-        oldest_mail_by_sender = {}
-        # get the oldest mail by each sender
-        for mail_id in mail_dict:
-            mail_data = mail_dict[mail_id]
-            if mail_data['from'] in oldest_mail_by_sender:
-                if mail_data['time'] < oldest_mail_by_sender[mail_data['from']]['time']:
-                    oldest_mail_by_sender[mail_data['from']] = {'id': mail_data['id'], 'time': mail_data['time']}
-            else:
-                oldest_mail_by_sender[mail_data['from']] = {'id': mail_data['id'], 'time': mail_data['time']}
-        # add all remaining mails of the sender to the excessed_mails list
-        for mail_id in mail_dict:
-            mail_data = mail_dict[mail_id]
-            if mail_data['from'] in oldest_mail_by_sender:
-                if mail_data['id'] != oldest_mail_by_sender[mail_data['from']]['id']:
-                    self.log(f"--> Excessed email. From: {mail_data['from']}, Subject: {mail_data['subject']}, Time: {mail_data['time']}")
-                    excessed_mails.append(mail_id)
-                    if mail_data['from'] not in excessed_sender:
-                        excessed_sender.append(mail_data['from'])
-        # inform the sender about the excessed emails
-        for sender in excessed_sender:
-            message = f"Your emails are currently excessed. Please wait until your first email was processed."
-            deleted_mails = []
-            for mail_id in excessed_mails:
+        try:
+            excessed_sender = []
+            excessed_mails = []
+            oldest_mail_by_sender = {}
+            # get the oldest mail by each sender
+            for mail_id in mail_dict:
                 mail_data = mail_dict[mail_id]
-                deleted_mails.append(f"{mail_data['time']} --> {mail_data['subject']}")
-            message += f"\n\nThe following emails were deleted:\n{chr(10).join(deleted_mails)}"
-            self.send_email(sender, 'osintbot excessed emails', message)
-        # remove all remaining mails of the sender
-        self.log(f"--> Excessed emails found: {len(excessed_mails)}")
-        self.delete_email(excessed_mails)
+                if mail_data['from'] in oldest_mail_by_sender:
+                    if mail_data['time'] < oldest_mail_by_sender[mail_data['from']]['time']:
+                        oldest_mail_by_sender[mail_data['from']] = {'id': mail_data['id'], 'time': mail_data['time']}
+                else:
+                    oldest_mail_by_sender[mail_data['from']] = {'id': mail_data['id'], 'time': mail_data['time']}
+            # add all remaining mails of the sender to the excessed_mails list
+            for mail_id in mail_dict:
+                mail_data = mail_dict[mail_id]
+                if mail_data['from'] in oldest_mail_by_sender:
+                    if mail_data['id'] != oldest_mail_by_sender[mail_data['from']]['id']:
+                        self.log(f"--> Excessed email. From: {mail_data['from']}, Subject: {mail_data['subject']}, Time: {mail_data['time']}")
+                        excessed_mails.append(mail_id)
+                        if mail_data['from'] not in excessed_sender:
+                            excessed_sender.append(mail_data['from'])
+            # inform the sender about the excessed emails
+            for sender in excessed_sender:
+                message = f"Your emails are currently excessed. Please wait until your first email was processed."
+                deleted_mails = []
+                for mail_id in excessed_mails:
+                    mail_data = mail_dict[mail_id]
+                    deleted_mails.append(f"{mail_data['time']} --> {mail_data['subject']}")
+                message += f"\n\nThe following emails were deleted:\n{chr(10).join(deleted_mails)}"
+                self.send_email(sender, 'osintbot excessed emails', message)
+            # remove all remaining mails of the sender
+            self.log(f"--> Excessed emails found: {len(excessed_mails)}")
+            self.delete_email(excessed_mails)
+        except Exception as e:
+            self.log('!-- Could not sort excessed emails')
+            self.exception(e)
 
 
 
@@ -300,7 +305,7 @@ class Mail:
 def main():
     if os.path.isfile('.env'):
         load_dotenv(dotenv_path='.env')
-    Mail() 
+    Mailbot() 
 
 if __name__ == '__main__':
     main()
