@@ -16,8 +16,10 @@ if __name__ == "__main__":
         def __init__(self):
             if os.path.isfile('.env'):
                 dotenv.load_dotenv(dotenv_path='.env')
+            self.admin_mail = os.getenv('ADMIN_MAIL') or None
             self.discord_bot()
             self.mail_bot()
+
 
         def discord_bot(self):
             try:

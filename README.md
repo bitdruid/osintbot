@@ -4,7 +4,7 @@
 [![Docker Pulls](https://img.shields.io/docker/pulls/bitdruid/osintbot.svg)](https://hub.docker.com/r/bitdruid/osintbot/)
 
 # osintbot
-Playing around with possibilities of an osint-bot for discord (telegram tested in other branch).
+Playing around with possibilities of an osint-bot for discord inside a docker container.
 
 ## capabilities
 
@@ -20,8 +20,6 @@ Playing around with possibilities of an osint-bot for discord (telegram tested i
 
 ## Installation
 
-### Docker
-
 Populate .env with the table below or just pull the image from dockerhub (click on the badge above)
 
 ```
@@ -36,11 +34,30 @@ docker-compose up -d
 
 ### Environmental Variables
 
+#### general
+
+| env               | description                                          | default       |
+|-------------------|------------------------------------------------------|---------------|
+| ADMIN_MAIL        | address to receive admin notifications               |               |
+
+#### discord bot
+
 | env               | description                                          | default       |
 |-------------------|------------------------------------------------------|---------------|
 | BOT_TOKEN         | API-token of the bot                                 | must be given |
 | BOT_NAME          | name of the bot                                      | osintbot      |
 | BOT_CHANNEL       | channel the bot will create and post to              | osint         |
+| MAIL_IMAP_SERVER  | imap server to receive mails                         |               |
+| MAIL_IMAP_PORT    | imap port                                            | 993           |
+| MAIL_SMTP_SERVER  | smtp server to send mails                            |               |
+| MAIL_SMTP_PORT    | smtp port                                            | 587           |
+| MAIL_USER         | mail user                                            |               |
+| MAIL_PASS         | mail password                                        |               |
+
+#### mail bot
+
+| env               | description                                          | default       |
+|-------------------|------------------------------------------------------|---------------|
 | MAIL_IMAP_SERVER  | imap server to receive mails                         |               |
 | MAIL_IMAP_PORT    | imap port                                            | 993           |
 | MAIL_SMTP_SERVER  | smtp server to send mails                            |               |
