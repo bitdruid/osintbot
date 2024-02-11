@@ -76,7 +76,7 @@ class Mailbot:
             self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Emails found: {len(mail_dict)}") if mail_dict else None
             self.delete_expired_email(mail_dict) if mail_dict else None
             mail_dict = self.fetch_email()
-            self.delete_excessed_mails(mail_dict) if mail_dict else None
+            self.delete_rejected_mails(mail_dict) if mail_dict else None
             mail_dict = self.fetch_email()
             if mail_dict:
                 for mail_id in mail_dict:
@@ -160,10 +160,10 @@ class Mailbot:
         except Exception as e:
             self.log('!-- Could not sort expired emails')
             self.exception(e)
-    def delete_excessed_mails(self, mail_dict: dict) -> None:
+    def delete_rejected_mails(self, mail_dict: dict) -> None:
         try:
-            excessed_sender = []
-            excessed_mails = []
+            rejected_sender = []
+            rejected_mails = []
             oldest_mail_by_sender = {}
             # get the oldest mail by each sender
             for mail_id in mail_dict:
@@ -173,29 +173,29 @@ class Mailbot:
                         oldest_mail_by_sender[mail_data['from']] = {'id': mail_data['id'], 'time': mail_data['time']}
                 else:
                     oldest_mail_by_sender[mail_data['from']] = {'id': mail_data['id'], 'time': mail_data['time']}
-            # add all remaining mails of the sender to the excessed_mails list
+            # add all remaining mails of the sender to the rejected_mails list
             for mail_id in mail_dict:
                 mail_data = mail_dict[mail_id]
                 if mail_data['from'] in oldest_mail_by_sender:
                     if mail_data['id'] != oldest_mail_by_sender[mail_data['from']]['id']:
-                        self.log(f"--> Excessed email. From: {mail_data['from']}, Subject: {mail_data['subject']}, Time: {mail_data['time']}")
-                        excessed_mails.append(mail_id)
-                        if mail_data['from'] not in excessed_sender:
-                            excessed_sender.append(mail_data['from'])
+                        self.log(f"--> Rejected email. From: {mail_data['from']}, Subject: {mail_data['subject']}, Time: {mail_data['time']}")
+                        rejected_mails.append(mail_id)
+                        if mail_data['from'] not in rejected_sender:
+                            rejected_sender.append(mail_data['from'])
             # inform the sender about the excessed emails
-            for sender in excessed_sender:
-                message = f"Your emails are currently excessed. Please wait until your first email was processed."
+            for sender in rejected_sender:
+                message = f"Your emails are currently rejected. Please wait until your first email was processed."
                 deleted_mails = []
-                for mail_id in excessed_mails:
+                for mail_id in rejected_mails:
                     mail_data = mail_dict[mail_id]
                     deleted_mails.append(f"{mail_data['time']} --> {mail_data['subject']}")
                 message += f"\n\nThe following emails were deleted:\n{chr(10).join(deleted_mails)}"
-                self.send_email(sender, 'osintbot excessed emails', message)
+                self.send_email(sender, 'osintbot rejected emails', message)
             # remove all remaining mails of the sender
-            self.log(f"--> Excessed emails found: {len(excessed_mails)}")
-            self.delete_email(excessed_mails)
+            self.log(f"--> Rejected emails found: {len(rejected_mails)}")
+            self.delete_email(rejected_mails)
         except Exception as e:
-            self.log('!-- Could not sort excessed emails')
+            self.log('!-- Could not sort rejected emails')
             self.exception(e)
 
 
