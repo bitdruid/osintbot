@@ -1,5 +1,4 @@
 import os
-import sys
 import threading
 import dotenv
 import osintbot.mail_bot as mail_bot
@@ -15,6 +14,7 @@ if __name__ == "__main__":
 
         def __init__(self):
             if os.path.isfile('.env'):
+                print(f"Loading .env file: {os.path.abspath('.env')}")
                 dotenv.load_dotenv(dotenv_path='.env')
             self.admin_mail = os.getenv('ADMIN_MAIL') or None
             self.discord_bot()

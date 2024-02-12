@@ -28,7 +28,7 @@ class Mailbot:
         smtp_disconnect(): Disconnects from the SMTP server.
         fetch_email(): Fetches the list of emails from the inbox.
         delete_email(mail: list or bytes): Deletes the specified email(s) from the inbox.
-        delete_expired_email(messages: list): Deletes expired emails from the inbox.
+        filter_expired_email(messages: list): Deletes expired emails from the inbox.
         send_email(to: str, subject: str, message: str): Sends an email to the specified recipient.
         read_email(): Reads the content of the emails in the inbox.
         parse_subject(mail): Parses the subject of the email to extract the function and input.
@@ -71,23 +71,26 @@ class Mailbot:
         self.imap_connect()
         while True:
             mail_dict = self.fetch_email()
-            self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Emails found: {len(mail_dict)}") if mail_dict else None
-            self.delete_expired_email(mail_dict) if mail_dict else None
-            mail_dict = self.fetch_email()
-            self.delete_rejected_mails(mail_dict) if mail_dict else None
-            mail_dict = self.fetch_email()
             if mail_dict:
-                for mail_id in mail_dict:
-                    mail_id = mail_dict[mail_id]['id']
-                    mail_from = mail_dict[mail_id]['from']
-                    mail_subject = mail_dict[mail_id]['subject']
-                    mail_time = mail_dict[mail_id]['time']
-                    self.log(f"Processing email: {mail_id} - time: {mail_time}, from: {mail_from}, subject: {mail_subject}")
-                    time.sleep(1)
-                    if not self.parse_subject(mail_dict[mail_id]):
-                        continue
-                    self.send_email(mail_dict[mail_id]['from'], 'osintbot response to: "' + self.FUNCTION + ' ' + self.INPUT + '"', self.run_function())
-                    self.delete_email(mail_id)
+                self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Emails found: {len(mail_dict)}") if mail_dict else None
+                expired_mails = self.filter_expired_email(mail_dict)
+                rejected_mails = self.filter_rejected_email(mail_dict)
+                delete_mails = list(set(expired_mails + rejected_mails))
+                mail_dict = self.mail_filter(mail_dict, delete_mails)
+                if mail_dict:
+                    for mail_id in mail_dict:
+                        mail_id = mail_dict[mail_id]['id']
+                        mail_from = mail_dict[mail_id]['from']
+                        mail_subject = mail_dict[mail_id]['subject']
+                        mail_time = mail_dict[mail_id]['time']
+                        self.log(f"Processing email: {mail_id} - time: {mail_time}, from: {mail_from}, subject: {mail_subject}")
+                        time.sleep(1)
+                        if not self.parse_subject(mail_dict[mail_id]):
+                            delete_mails.append(mail_id)
+                            continue
+                        self.send_email(mail_dict[mail_id]['from'], 'osintbot response to: "' + self.FUNCTION + ' ' + self.INPUT + '"', self.run_function())
+                        delete_mails.append(mail_id)
+                self.delete_email(delete_mails)
 
             if time.time() - current_time > self.connection_expire:
                 self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Connection expired. Reconnecting to IMAP server {self.env_instance.imap_server}.")
@@ -95,6 +98,18 @@ class Mailbot:
                 current_time = time.time()
                 self.imap_connect()
             time.sleep(30)
+
+    def mail_filter(self, mail_dict, filter_list):
+        try:
+            filtered_mail_dict = {}
+            for mail_id in mail_dict:
+                mail_id = mail_dict[mail_id]
+                if mail_id['id'] not in filter_list:
+                    filtered_mail_dict[mail_id['id']] = mail_id
+            return filtered_mail_dict
+        except Exception as e:
+            self.log('!-- Could not filter emails')
+            self.exception(e)
 
 
 
@@ -143,22 +158,22 @@ class Mailbot:
             self.log('!-- Email failed to delete')
             self.exception(e)
         
-    def delete_expired_email(self, mail_dict: dict) -> None:
+    def filter_expired_email(self, mail_dict: dict) -> None:
         try:
             expired_emails = []
             for mail_id in mail_dict:
-                mail_id = mail_dict[mail_id]
-                mail_time = mail_id['time']
+                mail_data = mail_dict[mail_id]
+                mail_time = mail_data['time']
                 if time.time() - time.mktime(time.strptime(mail_time, '%d-%b-%Y %H:%M:%S')) > self.mail_expire:
-                    self.log(f"--> Expired email {mail_id['id']}. From: {mail_id['from']}, Subject: {mail_id['subject']}, Time: {mail_time}")
+                    self.log(f"--> Expired email {mail_data['id']}. From: {mail_data['from']}, Subject: {mail_data['subject']}, Time: {mail_time}")
                     expired_emails.append(mail_id)
-                self.db_instance.mail_insert(True, mail_id['from'], mail_id['subject'])
-            if expired_emails:
-                self.delete_email(expired_emails)
+                self.db_instance.mail_insert(True, mail_data['from'], mail_data['subject'])
+            self.log(f"--> Expired emails overall: {len(expired_emails)}") if expired_emails else None
+            return expired_emails
         except Exception as e:
             self.log('!-- Could not sort expired emails')
             self.exception(e)
-    def delete_rejected_mails(self, mail_dict: dict) -> None:
+    def filter_rejected_email(self, mail_dict: dict) -> None:
         try:
             rejected_sender = []
             rejected_mails = []
@@ -171,7 +186,7 @@ class Mailbot:
                         oldest_mail_by_sender[mail_data['from']] = {'id': mail_data['id'], 'time': mail_data['time']}
                 else:
                     oldest_mail_by_sender[mail_data['from']] = {'id': mail_data['id'], 'time': mail_data['time']}
-            # add all remaining mails of the sender to the rejected_mails list
+            # add all remaining mails of the sender to the rejected_mails dict
             for mail_id in mail_dict:
                 mail_data = mail_dict[mail_id]
                 if mail_data['from'] in oldest_mail_by_sender:
@@ -180,9 +195,9 @@ class Mailbot:
                         rejected_mails.append(mail_id)
                         if mail_data['from'] not in rejected_sender:
                             rejected_sender.append(mail_data['from'])
-            # inform the sender about the excessed emails
+            # inform the sender about the rejected emails
             for sender in rejected_sender:
-                message = f"Your emails are currently rejected. Please wait until your first email was processed."
+                message = f"Some of your emails have been rejected due to multiple submissions. Wait until your previous request has been processed before submitting a new one."
                 deleted_mails = []
                 for mail_id in rejected_mails:
                     mail_data = mail_dict[mail_id]
@@ -190,8 +205,8 @@ class Mailbot:
                 message += f"\n\nThe following emails were deleted:\n{chr(10).join(deleted_mails)}"
                 self.send_email(sender, 'osintbot rejected emails', message)
             # remove all remaining mails of the sender
-            self.log(f"--> Rejected emails found: {len(rejected_mails)}")
-            self.delete_email(rejected_mails)
+            self.log(f"--> Rejected emails overall: {len(rejected_mails)}") if rejected_mails else None
+            return rejected_mails
         except Exception as e:
             self.log('!-- Could not sort rejected emails')
             self.exception(e)
@@ -255,7 +270,6 @@ class Mailbot:
             " arecord <domain> - Retrieve A record data for a domain\n" \
             " report <domain/ip> - Retrieve all available data for a domain or IP address"
             self.send_email(mail['from'], 'osintbot invalid subject: "' + mail['subject'] + '"', message + '\n\n' + commands)
-            self.delete_email(mail['id'])
             return False
 
             
@@ -298,7 +312,7 @@ class Mailbot:
 def main():
     if os.path.isfile('.env'):
         load_dotenv(dotenv_path='.env')
-    Mailbot() 
+    Mailbot()
 
 if __name__ == '__main__':
     main()
