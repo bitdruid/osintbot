@@ -34,27 +34,26 @@ docker-compose up -d
 
 ### Environmental Variables
 
-#### general
+<!-- #### general
 
 | env               | description                                          | default       |
 |-------------------|------------------------------------------------------|---------------|
 | ADMIN_MAIL        | address to receive admin notifications               |               |
+| ADMIN_INTERVAL    | interval to send admin notifications                 | 7d            | -->
 
 #### discord bot
+
+If at least the bot token is not given, the bot will not be started.
 
 | env               | description                                          | default       |
 |-------------------|------------------------------------------------------|---------------|
 | BOT_TOKEN         | API-token of the bot                                 | must be given |
 | BOT_NAME          | name of the bot                                      | osintbot      |
 | BOT_CHANNEL       | channel the bot will create and post to              | osint         |
-| MAIL_IMAP_SERVER  | imap server to receive mails                         |               |
-| MAIL_IMAP_PORT    | imap port                                            | 993           |
-| MAIL_SMTP_SERVER  | smtp server to send mails                            |               |
-| MAIL_SMTP_PORT    | smtp port                                            | 587           |
-| MAIL_USER         | mail user                                            |               |
-| MAIL_PASS         | mail password                                        |               |
 
 #### mail bot
+
+If not given, the mail bot will not be started.
 
 | env               | description                                          | default       |
 |-------------------|------------------------------------------------------|---------------|
