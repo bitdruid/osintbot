@@ -74,9 +74,10 @@ class Mailbot:
             if mail_dict:
                 self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Emails found: {len(mail_dict)}") if mail_dict else None
                 expired_mails = self.filter_expired_email(mail_dict)
+                mail_dict = self.mail_filter(mail_dict, expired_mails)
                 rejected_mails = self.filter_rejected_email(mail_dict)
+                mail_dict = self.mail_filter(mail_dict, rejected_mails)
                 delete_mails = list(set(expired_mails + rejected_mails))
-                mail_dict = self.mail_filter(mail_dict, delete_mails)
                 if mail_dict:
                     for mail_id in mail_dict:
                         mail_id = mail_dict[mail_id]['id']
