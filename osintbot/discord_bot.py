@@ -1,16 +1,12 @@
 import discord
 from discord.ext import commands
 import os
-import sys
 import time
 from datetime import datetime
-from dotenv import load_dotenv
 
-import osintbot.db as db
 import osintbot.send as send
 import osintkit.helper as kit_helper
 from osintbot.__version__ import __version__
-#from dotenv import load_dotenv
 
 def main(env_instance, db_instance):
 

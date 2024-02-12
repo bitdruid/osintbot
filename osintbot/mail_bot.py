@@ -1,12 +1,10 @@
 import os
 import sys
-import threading
 from dotenv import load_dotenv
 import time
 import smtplib
 import imaplib
 
-import osintbot.db as db
 import osintbot.datarequest as datarequest
 
 import osintkit.helper as kit_helper
