@@ -1,35 +1,25 @@
 import osintkit.helper as helper
-import subprocess
+import dns.resolver
 
 def request(input):
     domain = helper.ip_to_domain(input)
     if not domain:
         return "N/A"
     
-    nameservers = ['9.9.9.9', '1.1.1.1', '8.8.8.8', '208.67.222.222', '8.26.56.26']
+    resolver = dns.resolver.Resolver()
+    resolver.nameservers = ['8.8.8.8', '1.1.1.1', '9.9.9.9']
 
     response = {}
-    arecord = []
-    aaaa_record = []
-    for nameserver in nameservers:
-        a_command = f"dig @{nameserver} {domain} A +short"
-        aaaa_command = f"dig @{nameserver} {domain} AAAA +short"
-        try:
-            record = subprocess.check_output(a_command, shell=True, stderr=subprocess.DEVNULL, text=True)
-            for ip in record.strip().split("\n"):
-                if helper.validate_ip(ip):
-                    arecord.append(ip)
-            arecord = list(set(arecord))
-            record = subprocess.check_output(aaaa_command, shell=True, stderr=subprocess.DEVNULL, text=True)
-            for ip in record.strip().split("\n"):
-                if helper.validate_ip(ip):
-                    aaaa_record.append(ip)
-            aaaa_record = list(set(aaaa_record))
-        except Exception as e:
-            print(e)
-            pass
-    response["A"] = arecord
-    response["AAAA"] = aaaa_record
+
+    try:
+        response["A"] = [str(record) for record in resolver.resolve(domain, "A")]
+    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
+        pass
+
+    try:
+        response["AAAA"] = [str(record) for record in resolver.resolve(domain, "AAAA")]
+    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
+        pass
 
     return response if any(response.values()) else "N/A"
 
