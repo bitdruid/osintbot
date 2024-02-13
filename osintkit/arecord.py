@@ -7,19 +7,24 @@ def request(input):
         return "N/A"
     
     resolver = dns.resolver.Resolver()
-    resolver.nameservers = ['8.8.8.8', '1.1.1.1', '9.9.9.9']
+    nameservers = ['9.9.9.9', '1.1.1.1', '8.8.8.8', '208.67.222.222', '76.67.19.19']
 
     response = {}
-
-    try:
-        response["A"] = [str(record) for record in resolver.resolve(domain, "A")]
-    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
-        pass
-
-    try:
-        response["AAAA"] = [str(record) for record in resolver.resolve(domain, "AAAA")]
-    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
-        pass
+    arecord = []
+    queries = 4
+    for i in range(queries):
+        for nameserver in nameservers:
+            print(f"running nameserver: {nameserver}")
+            resolver.nameserver = [nameserver]
+            print(f"resolver: {resolver.nameserver}")
+            try:
+                record = [str(record) for record in resolver.resolve(domain, "A")]
+                for rdata in record:
+                    print(f"found A record: {rdata}")
+                    arecord.append(str(rdata))
+            except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
+                pass
+    response["A"] = list(set(arecord))
 
     return response if any(response.values()) else "N/A"
 
