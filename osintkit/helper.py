@@ -89,12 +89,10 @@ def get_primary(input: str) -> tuple:
     """
     if validate_domain(input):
         ip = domain_to_ip(input)
-        if ip:
-            return input, ip
+        return input, ip
     elif validate_ip(input):
         domain = ip_to_domain(input)
-        if domain:
-            return domain, input
+        return domain, input
     return False, False
 
 def json_to_string(json_input: str, markdown: bool = False) -> str:

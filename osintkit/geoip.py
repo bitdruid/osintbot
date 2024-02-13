@@ -10,17 +10,21 @@ api_dict = {
 }
 
 def query_api(api, ip):
-    """Query an API with the given IP. API string format: http://example.com/{placeholder}/otherstuff"""
-    api_url = api_dict[api].format(ip=ip)
-    user_agent = "Mozilla/5.0"  # Some APIs require a user agent else they block the request
-    response = requests.get(api_url, headers={"User-Agent": user_agent})
-    return response.json() if response.status_code == 200 else response
+    try:
+        """Query an API with the given IP. API string format: http://example.com/{placeholder}/otherstuff"""
+        api_url = api_dict[api].format(ip=ip)
+        user_agent = "Mozilla/5.0"  # Some APIs require a user agent else they block the request
+        response = requests.get(api_url, headers={"User-Agent": user_agent})
+        return response.json() if response.status_code == 200 else ["Error Statuscode " + str(response.status_code)]
+    except:
+        return ["Exception"]
 
 
 
 
 
 def filter_response(json_response):
+    """Filter and rename keys from the API response."""
     valid_keys = [
         "country",
         "region",
@@ -70,12 +74,12 @@ def request(input):
     response = {}
     for api in api_dict:
         api_data = query_api(api, ip)
-        api_data = filter_response(api_data)
-        api_data = convert_coords_to_url(api_data)
         if "country" in api_data:
+            api_data = filter_response(api_data)
+            api_data = convert_coords_to_url(api_data)
             response[api] = api_data
         else:
-            response[api] = "N/A"
+            response[api] = api_data
     return response
 
 
