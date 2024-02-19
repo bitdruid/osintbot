@@ -4,7 +4,7 @@ import osintkit.helper as helper
 def whois(domain: str) -> str:
     """Retrieve whois data for a domain"""
     whois_data = os.popen("whois " + domain).read().lower()
-    return whois_data if any(term in whois_data for term in ["domain name:", "netname:"]) else False
+    return whois_data if any(term in whois_data for term in ["domain name:", "netname:", "restricted rights"]) else False
 
 def whois_search_term(domain: str, term: str, whois_data=None, all=False) -> str:
     """Search for a specific term in the whois data"""

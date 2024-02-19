@@ -74,7 +74,7 @@ def request(input):
     response = {}
     for api in api_dict:
         api_data = query_api(api, ip)
-        if "country" in api_data:
+        if not "Error" in api_data:
             api_data = filter_response(api_data)
             api_data = convert_coords_to_url(api_data)
             response[api] = api_data
