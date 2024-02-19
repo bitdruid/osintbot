@@ -17,23 +17,36 @@ def whois_search_term(domain: str, term: str, whois_data=None, all=False) -> str
             return list(set(terms))
         else:
             term = whois_data.split(term)[1].split("\n")[0].strip()
-            return term if term else "N/A"
-    return "N/A"
+            return term if term else False
+    return False
 
 def request(domain: str) -> dict:
+    """
+    Retrieves WHOIS data for a given domain and extracts specific information from it.
+    """
     if not helper.validate_primary(domain):
-        return "N/A"
+        return False
 
     whois_data = whois(domain)
     if not whois_data:
         return "N/A"
 
-    return {
-        "creation_date": whois_search_term(domain, "creation date:", whois_data),
-        "registrar": whois_search_term(domain, "registrar:", whois_data),
-        "organization": whois_search_term(domain, "organization:", whois_data),
-        "whois": whois_data
+    result = {}
+
+    search_terms = {
+        "creation_date": "creation date:",
+        "registrar": "registrar:",
+        "network": "netname:",
+        "organization": "organization:"
     }
+
+    for key, term in search_terms.items():
+        value = whois_search_term(domain, term, whois_data)
+        if value:
+            result[key] = value
+
+    result["whois"] = whois_data if whois_data else "N/A"
+    return result
 
 if __name__ == "__main__":
     from osintkit.main import main_template

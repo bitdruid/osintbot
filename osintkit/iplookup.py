@@ -20,8 +20,9 @@ def iplookup(ip, domain):
         if "org" in api_data:
             ip_json["ASN and ISP"] = api_data["org"]
     if domain:
-        registrar = whois.request(domain)["registrar"] or "N/A"
-        ip_json["Domain Registrar"] = registrar
+        whois_data = whois.request(domain)
+        if "registrar" in whois_data: ip_json["registrar"] = whois_data["registrar"] 
+        if "network" in whois_data: ip_json["network"] = whois_data["network"]
     return ip_json if ip_json else "N/A"
 
 def request(input):
