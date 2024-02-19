@@ -11,24 +11,23 @@ def request(input):
     if header:
         header = email.parser.HeaderParser().parsestr(str(header))
         received = header.get_all("Received")
+        sender = email.utils.parseaddr(header.get("From"))[1]
+        sender_domain = sender.split("@")[1]
+        #mail_route = {
+        #    "timestamp": timestamp,
+        #    "from": ip/hostname,
+        #    "by": ip/hostname,
+        #    "for": ip/hostname,
+        #    "with": protocol,
+        #    "id": id,
+        #    "via": ip/hostname,
+        #    "spf-result": result,
+        #}
+        __import__("pprint").pprint(f"Sender: {sender}\nSender-Domain: {sender_domain}\nReceived:\n{received}")
         return received
 
 
 
 if __name__ == "__main__":
-    from pprint import pprint
-    import sys
-    script_name = sys.argv[0]
-    if "help" in sys.argv or "-h" in sys.argv or "--help" in sys.argv:
-        print(f"Usage: python3 {script_name} <string/file>")
-        exit()
-
-    if len(sys.argv) > 1:
-        input = sys.argv[1]
-        response = request(input)
-        if response:
-            pprint(response)
-        else:
-            print("No data available.")
-    else:
-        print(f"Usage: python3 {script_name} <string/file>")
+    from osintkit.main import main_template
+    main_template(request)

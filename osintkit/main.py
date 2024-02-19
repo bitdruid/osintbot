@@ -35,7 +35,7 @@ def main_template(request_function):
         response = json.dumps(response, indent=4)
         print(response)
     else:
-        print(f"Usage: python3 {script_name} <domain/ip>")
+        print(f"Usage: python3 {script_name} <domain/ip/string/file/mailheader>")
 
 
 def main():
