@@ -26,7 +26,7 @@ def main_template(request_function):
     import json
     script_name = sys.argv[0]
     if any(arg in sys.argv for arg in ["help", "-h", "--help"]):
-        print(f"Usage: python3 {script_name} <domain/ip>")
+        print(f"Usage: python3 {script_name} <domain/ip/string/file/mailheader>")
         exit()
 
     if len(sys.argv) > 1:
@@ -51,7 +51,7 @@ def main():
     optional.add_argument(
         "-f", "--format",
         metavar="",
-        help="Print the output in a specific format. Default json. [string|csv|markdown]"
+        help="Print the output in a specific format. Default json. [string|markdown]"
     )
     optional.add_argument(
         "-o", "--output",
@@ -79,15 +79,13 @@ def main():
         if response:
             if args.format:
                 if args.output:
-                    if args.output == True: args.output = "osintkit_output"
+                    if args.output is True: args.output = "osintkit_output"
                     helper.save_to_file(response, args.output, args.format)
                 else:
                     if args.format == "string":
                         print(helper.json_to_string(response))
                     elif args.format == "markdown":
                         print(helper.json_to_string(response, markdown=True))
-                    elif args.format == "csv":
-                        print(helper.json_to_csv(response))
             else:
                 print(json.dumps(response, indent=4))
         else:

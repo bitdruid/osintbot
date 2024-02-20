@@ -158,59 +158,6 @@ def json_to_string(json_input: str, markdown: bool = False) -> str:
 
 
 
-def json_to_csv(json_input: str) -> str:
-    """
-    Converts a JSON object to a CSV formatted string representation.
-
-    Parameters:
-        json_input (str): The JSON object to be converted. Can be a dictionary or a string.
-
-    Returns:
-        str: The CSV formatted string representation of the JSON object.
-
-    Notes:
-        - If the 'json_input' is not a dictionary, it is returned as is with a newline character appended.
-        - If the 'json_input' is a dictionary, the keys and values are formatted as follows:
-            - The keys are displayed as the header row.
-            - The values are displayed based on their type:
-                - If the value is a dictionary, the subkeys and subvalues are displayed as key-value pairs.
-                - If the value is a list, each item is displayed on a separate line.
-                - If the value is a string, it is displayed as is.
-        - Each key-value pair is displayed within double quotes.
-        - A newline character is added after each key-value pair, except for the last one.
-
-    Examples:
-        >>> json_input = '{"name": "John", "age": 30, "city": "New York"}'
-        >>> json_to_csv(json_input)
-        'name,age,city\nJohn,30,New York\n'
-        
-        >>> json_input = {"name": "John", "age": 30, "city": "New York"}
-        >>> json_to_csv(json_input)
-        'name,age,city\nJohn,30,New York\n'
-    """
-    if not isinstance(json_input, dict):
-        return json_input + "\n"
-    
-    count_keys = len(json_input.keys())
-    current_key = 1
-    message_parts = []
-    for key, value in json_input.items():
-        message_parts.append(f"{key}" if current_key == count_keys else f"{key},")
-        current_key += 1
-    message_parts.append("\n")
-    current_key = 1
-    for key, value in json_input.items():
-        if isinstance(value, dict):
-            message_parts.extend([f"{subkey}: {subvalue}" if current_key == count_keys else f"{subkey}: {subvalue}\n" for subkey, subvalue in value.items()])
-        elif isinstance(value, list):
-            message_parts.extend([f"{item}" if current_key == count_keys else f"{item}," for item in value])
-        elif isinstance(value, str):
-            message_parts.append(f"{value}" if current_key == count_keys else f"{value},")
-        current_key += 1
-    message_parts.append("\n")
-    return "".join(message_parts)
-
-
 def save_to_file(json_input: dict, path: str, format: str) -> None:
     """
     Save the JSON output to a file.
@@ -227,9 +174,9 @@ def save_to_file(json_input: dict, path: str, format: str) -> None:
         if format == "string":
             path = path + ".txt"
             output = json_to_string(json_input)
-        elif format == "csv":
-            path = path + ".csv"
-            output = json_to_csv(json_input)
+        if format == "markdown":
+            path = path + ".md"
+            output = json_to_string(json_input, markdown=True)
         else:
             path = path + ".json"
             output = json.dumps(json_input, indent=4)
