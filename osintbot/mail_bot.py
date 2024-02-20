@@ -50,6 +50,7 @@ class Mailbot:
 
     FUNCTION = None
     INPUT = None
+    ATTACHMENT = None
 
     def __init__(self, env_instance, db_instance):
         self.mail_expire = 360
@@ -89,7 +90,7 @@ class Mailbot:
                         if not self.parse_subject(mail_dict[mail_id]):
                             delete_mails.append(mail_id)
                             continue
-                        self.send_email(mail_dict[mail_id]['from'], 'osintbot response to: "' + self.FUNCTION + ' ' + self.INPUT + '"', self.run_function())
+                        self.send_email(mail_dict[mail_id]['from'], 'osintbot response to: "' + self.FUNCTION + ' ' + self.INPUT + '"', self.set_function())
                         delete_mails.append(mail_id)
                 self.delete_email(delete_mails)
 
@@ -278,26 +279,36 @@ class Mailbot:
 
     
 
-    def run_function(self):
+    def set_function(self):
         if self.FUNCTION and self.INPUT:
-            if self.FUNCTION == 'whois':
-                import osintkit.whois as whois
-                response = whois.request(self.INPUT)
-            elif self.FUNCTION == 'geoip':
-                import osintkit.geoip as geoip
-                response = geoip.request(self.INPUT)
-            elif self.FUNCTION == 'iplookup':
-                import osintkit.iplookup as iplookup
-                response = iplookup.request(self.INPUT)
-            elif self.FUNCTION == 'arecord':
-                import osintkit.arecord as arecord
-                response = arecord.request(self.INPUT)
-            elif self.FUNCTION == 'report':
-                response = datarequest.full_report(self.INPUT)
+            if self.INPUT == 'file':
+                self.parse_attachment()
+                self.run_function_list()
             else:
-                response = "Invalid function"
-            self.log(f"--> Running function: '{self.FUNCTION}' with input: '{self.INPUT}'")
-            return kit_helper.json_to_string(response)
+                self.run_function_single()
+
+    def run_function_single(self):
+        if self.FUNCTION == 'whois':
+            import osintkit.whois as whois
+            response = whois.request(self.INPUT)
+        elif self.FUNCTION == 'geoip':
+            import osintkit.geoip as geoip
+            response = geoip.request(self.INPUT)
+        elif self.FUNCTION == 'iplookup':
+            import osintkit.iplookup as iplookup
+            response = iplookup.request(self.INPUT)
+        elif self.FUNCTION == 'arecord':
+            import osintkit.arecord as arecord
+            response = arecord.request(self.INPUT)
+        elif self.FUNCTION == 'report':
+            response = datarequest.full_report(self.INPUT)
+        else:
+            response = "Invalid function"
+        self.log(f"--> Running function: '{self.FUNCTION}' with input: '{self.INPUT}'")
+        return kit_helper.json_to_string(response)
+    
+    def run_function_list(self):
+        pass
         
     def exception(self, e):
         self.log(f"!-- Error function: {sys.exc_info()[-1].tb_frame.f_code.co_name}")
