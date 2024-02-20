@@ -48,7 +48,11 @@ def main():
     required.add_argument("--arecord", type=str, metavar="", help="Perform an A record lookup on a domain")
 
     optional = parser.add_argument_group()
-    optional.add_argument("-hr", "--human-readable", action="store_true", help="Print the output in human readable format")
+    optional.add_argument(
+        "-f", "--format",
+        metavar="[string|csv|markdown]",
+        help="Print the output in a specific format (string, csv, markdown)"
+    )
 
 
 
@@ -66,8 +70,13 @@ def main():
             response = geoip.request(args.geoip)
 
         if response:
-            if args.human_readable:
-                print(helper.json_to_string(response))
+            if args.format:
+                if args.format == "string":
+                    print(helper.json_to_string(response))
+                elif args.format == "markdown":
+                    print(helper.json_to_string(response, markdown=True))
+                elif args.format == "csv":
+                    print(helper.json_to_csv(response))
             else:
                 print(json.dumps(response, indent=4))
         else:

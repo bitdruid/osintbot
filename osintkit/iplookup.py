@@ -13,12 +13,9 @@ def iplookup(ip, domain):
         except:
             pass
         api_data = requests.get(f"http://ipinfo.io/{ip}/json").json()
-        if "hostname" in api_data:
-            ip_json["Hostname"] = api_data["hostname"]
-        if "country" in api_data:
-            ip_json["Country"] = api_data["country"]
-        if "org" in api_data:
-            ip_json["ASN and ISP"] = api_data["org"]
+        if "hostname" in api_data: ip_json["Hostname"] = api_data["hostname"]
+        if "country" in api_data: ip_json["Country"] = api_data["country"]
+        if "org" in api_data: ip_json["ASN and ISP"] = api_data["org"]
     if domain:
         whois_data = whois.request(domain)
         if "registrar" in whois_data: ip_json["registrar"] = whois_data["registrar"] 
