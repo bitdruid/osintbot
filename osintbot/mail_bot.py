@@ -1,5 +1,6 @@
 import os
 import sys
+import shlex
 from dotenv import load_dotenv
 import time
 import smtplib
@@ -31,7 +32,7 @@ class Mailbot:
         filter_expired_email(messages: list): Deletes expired emails from the inbox.
         send_email(to: str, subject: str, message: str): Sends an email to the specified recipient.
         read_email(): Reads the content of the emails in the inbox.
-        parse_subject(mail): Parses the subject of the email to extract the function and input.
+        parse_content(mail): Parses the subject of the email to extract the function and input.
         run_function(): Executes the specified function with the given input.
         exception(e): Handles exceptions and prints error details.
 
@@ -50,7 +51,7 @@ class Mailbot:
 
     FUNCTION = None
     INPUT = None
-    ATTACHMENT = None
+    BODY = None
 
     def __init__(self, env_instance, db_instance):
         self.mail_expire = 360
@@ -87,10 +88,10 @@ class Mailbot:
                         mail_time = mail_dict[mail_id]['time']
                         self.log(f"Processing email: {mail_id} - time: {mail_time}, from: {mail_from}, subject: {mail_subject}")
                         time.sleep(1)
-                        if not self.parse_subject(mail_dict[mail_id]):
+                        if not self.parse_content(mail_dict[mail_id]):
                             delete_mails.append(mail_id)
                             continue
-                        self.send_email(mail_dict[mail_id]['from'], 'osintbot response to: "' + self.FUNCTION + ' ' + self.INPUT + '"', self.set_function())
+                        self.send_email(mail_dict[mail_id]['from'], 'osintbot response to: "' + self.FUNCTION + ' ' + self.INPUT + '"', self.run_function())
                         delete_mails.append(mail_id)
                 self.delete_email(delete_mails)
 
@@ -248,30 +249,34 @@ class Mailbot:
 
 
 
-    def parse_subject(self, mail):
-        import shlex
+    def parse_content(self, mail):
         try:
+            body = mail['body']
             subject = mail['subject']
             arguments = subject.split(' ')
             if len(arguments) != 2:
                 raise ValueError('Invalid subject')
             # only allow alphanumeric characters, hyphen, and period
             allowed_chars = 'abcdefghijklmnopqrstuvwxyz0123456789.-'
+            if not all(char in allowed_chars for char in body.lower()) or not all(char in allowed_chars for char in arguments[0].lower()) or not all(char in allowed_chars for char in arguments[1].lower()):
+                raise ValueError('Invalid body')
             if not all(char in allowed_chars for char in arguments[0].lower()) or not all(char in allowed_chars for char in arguments[1].lower()):
                 raise ValueError('Invalid subject')
             # filter anyway to prevent injection
             self.FUNCTION = shlex.quote(''.join(filter(lambda char: char in allowed_chars, arguments[0].lower())))
             self.INPUT = shlex.quote(''.join(filter(lambda char: char in allowed_chars, arguments[1].lower())))
+            self.BODY = shlex.quote(''.join(filter(lambda char: char in allowed_chars, body.lower())))
             return True
         except ValueError:
-            message = 'Invalid subject. Please use the following format: <function> <input>. Example: "whois example.com"'
+            message = 'Invalid mail content. Please use the following format: <function> <input>. Example: "whois example.com." + \
+            "Alternative batch-requests (max. 5): <function> <batch>. Example: Subject: "whois batch" Body: "example.com\nexample.org\nexample.net"'
             commands = "Available commands:\n" \
             " whois <domain/ip> - Retrieve whois data for a domain or IP address\n" \
             " iplookup <domain/ip> - Retrieve IP lookup data for a domain or IP address\n" \
             " geoip <domain/ip> - Retrieve GeoIP data for a domain or IP address\n" \
             " arecord <domain> - Retrieve A record data for a domain\n" \
             " report <domain/ip> - Retrieve all available data for a domain or IP address"
-            self.send_email(mail['from'], 'osintbot invalid subject: "' + mail['subject'] + '"', message + '\n\n' + commands)
+            self.send_email(mail['from'], 'osintbot invalid mail: "' + mail['subject'] + '"', message + '\n\n' + commands)
             return False
 
             
@@ -279,36 +284,29 @@ class Mailbot:
 
     
 
-    def set_function(self):
+    def run_function(self):
         if self.FUNCTION and self.INPUT:
-            if self.INPUT == 'file':
-                self.parse_attachment()
-                self.run_function_list()
+            if self.BODY is not None and self.INPUT == 'batch':
+                self.BODY = [shlex.quote(line) for line in self.BODY.split('\n')]
+                self.log(f"--> Running batch function: '{self.FUNCTION}' with input: '{self.BODY}'")
+            elif self.FUNCTION == 'whois':
+                import osintkit.whois as whois
+                response = whois.request(self.INPUT)
+            elif self.FUNCTION == 'geoip':
+                import osintkit.geoip as geoip
+                response = geoip.request(self.INPUT)
+            elif self.FUNCTION == 'iplookup':
+                import osintkit.iplookup as iplookup
+                response = iplookup.request(self.INPUT)
+            elif self.FUNCTION == 'arecord':
+                import osintkit.arecord as arecord
+                response = arecord.request(self.INPUT)
+            elif self.FUNCTION == 'report':
+                response = datarequest.full_report(self.INPUT)
             else:
-                self.run_function_single()
-
-    def run_function_single(self):
-        if self.FUNCTION == 'whois':
-            import osintkit.whois as whois
-            response = whois.request(self.INPUT)
-        elif self.FUNCTION == 'geoip':
-            import osintkit.geoip as geoip
-            response = geoip.request(self.INPUT)
-        elif self.FUNCTION == 'iplookup':
-            import osintkit.iplookup as iplookup
-            response = iplookup.request(self.INPUT)
-        elif self.FUNCTION == 'arecord':
-            import osintkit.arecord as arecord
-            response = arecord.request(self.INPUT)
-        elif self.FUNCTION == 'report':
-            response = datarequest.full_report(self.INPUT)
-        else:
-            response = "Invalid function"
-        self.log(f"--> Running function: '{self.FUNCTION}' with input: '{self.INPUT}'")
-        return kit_helper.json_to_string(response)
-    
-    def run_function_list(self):
-        pass
+                response = "Invalid function"
+            self.log(f"--> Running function: '{self.FUNCTION}' with input: '{self.INPUT}'")
+            return kit_helper.json_to_string(response)
         
     def exception(self, e):
         self.log(f"!-- Error function: {sys.exc_info()[-1].tb_frame.f_code.co_name}")
