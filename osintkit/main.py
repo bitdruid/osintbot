@@ -50,8 +50,15 @@ def main():
     optional = parser.add_argument_group()
     optional.add_argument(
         "-f", "--format",
-        metavar="[string|csv|markdown]",
-        help="Print the output in a specific format (string, csv, markdown)"
+        metavar="",
+        help="Print the output in a specific format. Default json. [string|csv|markdown]"
+    )
+    optional.add_argument(
+        "-o", "--output",
+        nargs="?",
+        metavar="",
+        const=True,
+        help="Save the output to a file"
     )
 
 
@@ -71,12 +78,16 @@ def main():
 
         if response:
             if args.format:
-                if args.format == "string":
-                    print(helper.json_to_string(response))
-                elif args.format == "markdown":
-                    print(helper.json_to_string(response, markdown=True))
-                elif args.format == "csv":
-                    print(helper.json_to_csv(response))
+                if args.output:
+                    if args.output == True: args.output = "osintkit_output"
+                    helper.save_to_file(response, args.output, args.format)
+                else:
+                    if args.format == "string":
+                        print(helper.json_to_string(response))
+                    elif args.format == "markdown":
+                        print(helper.json_to_string(response, markdown=True))
+                    elif args.format == "csv":
+                        print(helper.json_to_csv(response))
             else:
                 print(json.dumps(response, indent=4))
         else:

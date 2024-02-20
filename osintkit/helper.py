@@ -1,6 +1,7 @@
 import ipaddress
 import socket
 import requests
+import json
 
 
 def check_online_offline(domain):
@@ -95,6 +96,8 @@ def get_primary(input: str) -> tuple:
         return domain, input
     return False, False
 
+
+
 def json_to_string(json_input: str, markdown: bool = False) -> str:
     """
     Converts a JSON object to a formatted string representation.
@@ -153,6 +156,8 @@ def json_to_string(json_input: str, markdown: bool = False) -> str:
         current_key += 1
     return "".join(message_parts)
 
+
+
 def json_to_csv(json_input: str) -> str:
     """
     Converts a JSON object to a CSV formatted string representation.
@@ -196,7 +201,7 @@ def json_to_csv(json_input: str) -> str:
     current_key = 1
     for key, value in json_input.items():
         if isinstance(value, dict):
-            message_parts.extend([f"{subkey}: {subvalue}" if current_key == count_keys else f"{subkey}: {subvalue}," for subkey, subvalue in value.items()])
+            message_parts.extend([f"{subkey}: {subvalue}" if current_key == count_keys else f"{subkey}: {subvalue}\n" for subkey, subvalue in value.items()])
         elif isinstance(value, list):
             message_parts.extend([f"{item}" if current_key == count_keys else f"{item}," for item in value])
         elif isinstance(value, str):
@@ -204,3 +209,34 @@ def json_to_csv(json_input: str) -> str:
         current_key += 1
     message_parts.append("\n")
     return "".join(message_parts)
+
+
+def save_to_file(json_input: dict, path: str, format: str) -> None:
+    """
+    Save the JSON output to a file.
+
+    Args:
+        json_input (dict): The JSON object to be saved to a file.
+        path (str): The path of the file where the JSON output will be saved.
+        format (str): The format in which the JSON output should be saved (string, CSV, or JSON).
+
+    Returns:
+        None. The function saves the JSON output to a file.
+    """
+    try:
+        if format == "string":
+            path = path + ".txt"
+            output = json_to_string(json_input)
+        elif format == "csv":
+            path = path + ".csv"
+            output = json_to_csv(json_input)
+        else:
+            path = path + ".json"
+            output = json.dumps(json_input, indent=4)
+
+        with open(path, "w") as file:
+            file.write(output)
+
+        print(f"Output saved to {path}")
+    except Exception as e:
+        print(f"Error saving output to {path}: {str(e)}")
