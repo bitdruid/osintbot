@@ -260,7 +260,7 @@ class Mailbot:
     def log(self, message):
         print(message)
         os.makedirs('log', exist_ok=True)
-        with open('log/mail.log', 'a') as log:
+        with open('logs/mail.log', 'a') as log:
             log.write(message + '\n')
 
 def main():
