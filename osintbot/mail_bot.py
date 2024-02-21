@@ -6,7 +6,7 @@ import smtplib
 import imaplib
 
 import osintbot.datarequest as datarequest
-import osintbot.mail as mail
+import osintbot.mail as m
 
 import osintkit.helper as kit_helper
 
@@ -50,10 +50,10 @@ class Mailbot:
                         self.log(f"Processing email: {mail.MAIL_ID} - time: {mail.MAIL_TIME}, from: {mail.MAIL_FROM}, subject: {mail.MAIL_SUBJECT}")
                         time.sleep(1)
                         if not self.parse_subject(mail):
-                            delete_mails.append(mail.MAIL_ID)
+                            delete_mails.append(mail)
                             continue
                         self.send_email(mail.MAIL_FROM, 'osintbot response to: "' + self.FUNCTION + ' ' + self.INPUT + '"', self.run_function())
-                        delete_mails.append(mail.MAIL_ID)
+                        delete_mails.append(mail)
                 self.delete_email(delete_mails)
 
             if time.time() - current_time > self.connection_expire:
@@ -66,6 +66,7 @@ class Mailbot:
     def mail_filter(self, mail_list, filter_list):
         try:
             filtered_mail_list = []
+            filter_list = [mail.MAIL_ID for mail in filter_list]
             for mail in mail_list:
                 if mail.MAIL_ID not in filter_list:
                     filtered_mail_list.append(mail)
@@ -105,18 +106,12 @@ class Mailbot:
 
 
 
-    def delete_email(self, mail: list or bytes) -> None:
+    def delete_email(self, mail_list: list) -> None:
         try:
-            if type(mail) == list:
-                for mail_id in mail:
-                    self.IMAP.store(mail_id, '+FLAGS', '\\Deleted')
-                self.IMAP.expunge()
-                self.log(f"--> Emails deleted successfully: {len(mail)}")
-            else:
-                mail_id = mail
-                self.IMAP.store(mail_id, '+FLAGS', '\\Deleted')
-                self.IMAP.expunge()
-                self.log('--> Email deleted successfully')
+            for mail in mail_list:
+                self.IMAP.store(mail.MAIL_ID, '+FLAGS', '\\Deleted')
+            self.IMAP.expunge()
+            self.log(f"--> Emails deleted successfully: {len(mail_list)}") if mail_list else None
         except Exception as e:
             self.log('!-- Email failed to delete')
             self.exception(e)
@@ -156,7 +151,7 @@ class Mailbot:
                             rejected_sender.append(mail.MAIL_FROM)
             # inform the sender about the rejected emails
             for sender in rejected_sender:
-                message = f"Some of your emails have been rejected due to multiple submissions. Wait until your previous request has been processed before submitting a new one."
+                message = "Some of your emails have been rejected due to multiple submissions. Wait until your previous request has been processed before submitting a new one."
                 deleted_mails = []
                 for mail in rejected_mails:
                     deleted_mails.append(f"{mail.MAIL_TIME} --> {mail.MAIL_SUBJECT}")
@@ -195,7 +190,7 @@ class Mailbot:
                 mail_from = self.IMAP.fetch(mail_id, '(BODY[HEADER.FIELDS (FROM)])')[1][0][1].decode().split('<')[1].split('>')[0].strip()
                 mail_subject = self.IMAP.fetch(mail_id, '(BODY[HEADER.FIELDS (SUBJECT)])')[1][0][1].decode().split('Subject: ')[1].removesuffix('\r\n\r\n').strip()
                 mail_body = self.IMAP.fetch(mail_id, '(BODY[TEXT])')[1][0][1].decode().removesuffix('\r\n').strip()
-                mail_list.append(mail(mail_id, mail_time, mail_from, mail_subject, mail_body))
+                mail_list.append(m.Mail(mail_id, mail_time, mail_from, mail_subject, mail_body))
             return mail_list
         except Exception as e:
             self.log('!-- Email failed to fetch')

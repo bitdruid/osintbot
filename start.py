@@ -68,5 +68,5 @@ if __name__ == "__main__":
     # start discord_bot
     if env_instance.DISCORD_BOT:
         discord_instance = discord_bot.main(env_instance, db_instance)
-        discord_thread = threading.Thread(target=discord_instance.discord_run)
+        discord_thread = threading.Thread(target=discord_instance)
         discord_thread.start()
