@@ -41,9 +41,9 @@ class Mailbot:
             if mail_list:
                 self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Emails found: {len(mail_list)}") if mail_list else None
                 expired_mails = self.filter_expired_email(mail_list)
-                mail_dict = self.mail_filter(mail_dict, expired_mails)
-                rejected_mails = self.filter_rejected_email(mail_dict)
-                mail_dict = self.mail_filter(mail_dict, rejected_mails)
+                mail_list = self.mail_filter(mail_list, expired_mails)
+                rejected_mails = self.filter_rejected_email(mail_list)
+                mail_list = self.mail_filter(mail_list, rejected_mails)
                 delete_mails = list(set(expired_mails + rejected_mails))
                 if mail_list:
                     for mail in mail_list:
@@ -63,14 +63,13 @@ class Mailbot:
                 self.imap_connect()
             time.sleep(30)
 
-    def mail_filter(self, mail_dict, filter_list):
+    def mail_filter(self, mail_list, filter_list):
         try:
-            filtered_mail_dict = {}
-            for mail_id in mail_dict:
-                mail_id = mail_dict[mail_id]
-                if mail_id['id'] not in filter_list:
-                    filtered_mail_dict[mail_id['id']] = mail_id
-            return filtered_mail_dict
+            filtered_mail_list = []
+            for mail in mail_list:
+                if mail.MAIL_ID not in filter_list:
+                    filtered_mail_list.append(mail)
+            return filtered_mail_list
         except Exception as e:
             self.log('!-- Could not filter emails')
             self.exception(e)
@@ -122,48 +121,45 @@ class Mailbot:
             self.log('!-- Email failed to delete')
             self.exception(e)
         
-    def filter_expired_email(self, mail_list: dict) -> None:
+    def filter_expired_email(self, mail_list: list) -> None:
         try:
             expired_emails = []
             for mail in mail_list:
                 if time.time() - time.mktime(time.strptime(mail.MAIL_TIME, '%d-%b-%Y %H:%M:%S')) > self.mail_expire:
                     self.log(f"--> Expired email {mail.MAIL_ID}. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}")
-                    expired_emails.append(mail.MAIL_ID)
+                    expired_emails.append(mail)
                 self.db_instance.mail_insert(True, mail.MAIL_FROM, mail.MAIL_SUBJECT)
             self.log(f"--> Expired emails overall: {len(expired_emails)}") if expired_emails else None
             return expired_emails
         except Exception as e:
             self.log('!-- Could not sort expired emails')
             self.exception(e)
-    def filter_rejected_email(self, mail_dict: dict) -> None:
+    def filter_rejected_email(self, mail_list: list) -> None:
         try:
             rejected_sender = []
             rejected_mails = []
             oldest_mail_by_sender = {}
             # get the oldest mail by each sender
-            for mail_id in mail_dict:
-                mail_data = mail_dict[mail_id]
-                if mail_data['from'] in oldest_mail_by_sender:
-                    if mail_data['time'] < oldest_mail_by_sender[mail_data['from']]['time']:
-                        oldest_mail_by_sender[mail_data['from']] = {'id': mail_data['id'], 'time': mail_data['time']}
+            for mail in mail_list:
+                if mail.MAIL_FROM in oldest_mail_by_sender:
+                    if mail.MAIL_TIME < oldest_mail_by_sender[mail.MAIL_FROM].MAIL_TIME:
+                        oldest_mail_by_sender[mail.MAIL_FROM] = mail
                 else:
-                    oldest_mail_by_sender[mail_data['from']] = {'id': mail_data['id'], 'time': mail_data['time']}
-            # add all remaining mails of the sender to the rejected_mails dict
-            for mail_id in mail_dict:
-                mail_data = mail_dict[mail_id]
-                if mail_data['from'] in oldest_mail_by_sender:
-                    if mail_data['id'] != oldest_mail_by_sender[mail_data['from']]['id']:
-                        self.log(f"--> Rejected email. From: {mail_data['from']}, Subject: {mail_data['subject']}, Time: {mail_data['time']}")
-                        rejected_mails.append(mail_id)
-                        if mail_data['from'] not in rejected_sender:
-                            rejected_sender.append(mail_data['from'])
+                    oldest_mail_by_sender[mail.MAIL_FROM] = mail
+            # add all remaining mails of the sender to the rejected_mails list
+            for mail in mail_list:
+                if mail.MAIL_FROM in oldest_mail_by_sender:
+                    if mail.MAIL_ID != oldest_mail_by_sender[mail.MAIL_FROM].MAIL_ID:
+                        self.log(f"--> Rejected email. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}")
+                        rejected_mails.append(mail)
+                        if mail.MAIL_FROM not in rejected_sender:
+                            rejected_sender.append(mail.MAIL_FROM)
             # inform the sender about the rejected emails
             for sender in rejected_sender:
                 message = f"Some of your emails have been rejected due to multiple submissions. Wait until your previous request has been processed before submitting a new one."
                 deleted_mails = []
-                for mail_id in rejected_mails:
-                    mail_data = mail_dict[mail_id]
-                    deleted_mails.append(f"{mail_data['time']} --> {mail_data['subject']}")
+                for mail in rejected_mails:
+                    deleted_mails.append(f"{mail.MAIL_TIME} --> {mail.MAIL_SUBJECT}")
                 message += f"\n\nThe following emails were deleted:\n{chr(10).join(deleted_mails)}"
                 self.send_email(sender, 'osintbot rejected emails', message)
             # remove all remaining mails of the sender
