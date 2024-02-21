@@ -1,57 +1,22 @@
 import os
 import sys
-import shlex
 from dotenv import load_dotenv
 import time
 import smtplib
 import imaplib
 
 import osintbot.datarequest as datarequest
+import osintbot.mail as mail
 
 import osintkit.helper as kit_helper
 
 class Mailbot:
-    """
-    Class representing an email client.
-
-    Attributes:
-        IMAP (None): IMAP connection object.
-        SMTP (None): SMTP connection object.
-        FUNCTION (None): The function specified in the email subject.
-        INPUT (None): The input specified in the email subject.
-
-    Methods:
-        __init__(): Initializes the Mail object and establishes connections to the email servers.
-        imap_loop(): Continuously checks for new emails and performs actions based on the email content.
-        imap_connect(): Connects to the IMAP server.
-        imap_disconnect(): Disconnects from the IMAP server.
-        smtp_connect(): Connects to the SMTP server.
-        smtp_disconnect(): Disconnects from the SMTP server.
-        fetch_email(): Fetches the list of emails from the inbox.
-        delete_email(mail: list or bytes): Deletes the specified email(s) from the inbox.
-        filter_expired_email(messages: list): Deletes expired emails from the inbox.
-        send_email(to: str, subject: str, message: str): Sends an email to the specified recipient.
-        read_email(): Reads the content of the emails in the inbox.
-        parse_content(mail): Parses the subject of the email to extract the function and input.
-        run_function(): Executes the specified function with the given input.
-        exception(e): Handles exceptions and prints error details.
-
-    Note:
-        This class requires the following environment variables to be set:
-        - MAIL_USER: Email address of the user.
-        - MAIL_PASS: Password for the email account.
-        - MAIL_SMTP_SERVER: SMTP server address.
-        - MAIL_SMTP_PORT: SMTP server port.
-        - MAIL_IMAP_SERVER: IMAP server address.
-        - MAIL_IMAP_PORT: IMAP server port.
-    """
 
     IMAP = None
     SMTP = None
 
     FUNCTION = None
     INPUT = None
-    BODY = None
 
     def __init__(self, env_instance, db_instance):
         self.mail_expire = 360
@@ -72,27 +37,23 @@ class Mailbot:
         current_time = time.time()
         self.imap_connect()
         while True:
-            mail_dict = self.fetch_email()
-            if mail_dict:
-                self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Emails found: {len(mail_dict)}") if mail_dict else None
-                expired_mails = self.filter_expired_email(mail_dict)
+            mail_list = self.fetch_email()
+            if mail_list:
+                self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Emails found: {len(mail_list)}") if mail_list else None
+                expired_mails = self.filter_expired_email(mail_list)
                 mail_dict = self.mail_filter(mail_dict, expired_mails)
                 rejected_mails = self.filter_rejected_email(mail_dict)
                 mail_dict = self.mail_filter(mail_dict, rejected_mails)
                 delete_mails = list(set(expired_mails + rejected_mails))
-                if mail_dict:
-                    for mail_id in mail_dict:
-                        mail_id = mail_dict[mail_id]['id']
-                        mail_from = mail_dict[mail_id]['from']
-                        mail_subject = mail_dict[mail_id]['subject']
-                        mail_time = mail_dict[mail_id]['time']
-                        self.log(f"Processing email: {mail_id} - time: {mail_time}, from: {mail_from}, subject: {mail_subject}")
+                if mail_list:
+                    for mail in mail_list:
+                        self.log(f"Processing email: {mail.MAIL_ID} - time: {mail.MAIL_TIME}, from: {mail.MAIL_FROM}, subject: {mail.MAIL_SUBJECT}")
                         time.sleep(1)
-                        if not self.parse_content(mail_dict[mail_id]):
-                            delete_mails.append(mail_id)
+                        if not self.parse_subject(mail):
+                            delete_mails.append(mail.MAIL_ID)
                             continue
-                        self.send_email(mail_dict[mail_id]['from'], 'osintbot response to: "' + self.FUNCTION + ' ' + self.INPUT + '"', self.run_function())
-                        delete_mails.append(mail_id)
+                        self.send_email(mail.MAIL_FROM, 'osintbot response to: "' + self.FUNCTION + ' ' + self.INPUT + '"', self.run_function())
+                        delete_mails.append(mail.MAIL_ID)
                 self.delete_email(delete_mails)
 
             if time.time() - current_time > self.connection_expire:
@@ -161,16 +122,14 @@ class Mailbot:
             self.log('!-- Email failed to delete')
             self.exception(e)
         
-    def filter_expired_email(self, mail_dict: dict) -> None:
+    def filter_expired_email(self, mail_list: dict) -> None:
         try:
             expired_emails = []
-            for mail_id in mail_dict:
-                mail_data = mail_dict[mail_id]
-                mail_time = mail_data['time']
-                if time.time() - time.mktime(time.strptime(mail_time, '%d-%b-%Y %H:%M:%S')) > self.mail_expire:
-                    self.log(f"--> Expired email {mail_data['id']}. From: {mail_data['from']}, Subject: {mail_data['subject']}, Time: {mail_time}")
-                    expired_emails.append(mail_id)
-                self.db_instance.mail_insert(True, mail_data['from'], mail_data['subject'])
+            for mail in mail_list:
+                if time.time() - time.mktime(time.strptime(mail.MAIL_TIME, '%d-%b-%Y %H:%M:%S')) > self.mail_expire:
+                    self.log(f"--> Expired email {mail.MAIL_ID}. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}")
+                    expired_emails.append(mail.MAIL_ID)
+                self.db_instance.mail_insert(True, mail.MAIL_FROM, mail.MAIL_SUBJECT)
             self.log(f"--> Expired emails overall: {len(expired_emails)}") if expired_emails else None
             return expired_emails
         except Exception as e:
@@ -234,13 +193,14 @@ class Mailbot:
             self.IMAP.select('inbox')
             status, messages = self.IMAP.search(None, '(TO ' + self.env_instance.mail_user + ')')
             messages = messages[0].split()
-            mail_dict = {}
+            mail_list = []
             for mail_id in messages:
                 mail_time = self.IMAP.fetch(mail_id, '(INTERNALDATE)')[1][0].decode().split('INTERNALDATE ')[1].split('"')[1].split(' +')[0].strip()
                 mail_from = self.IMAP.fetch(mail_id, '(BODY[HEADER.FIELDS (FROM)])')[1][0][1].decode().split('<')[1].split('>')[0].strip()
                 mail_subject = self.IMAP.fetch(mail_id, '(BODY[HEADER.FIELDS (SUBJECT)])')[1][0][1].decode().split('Subject: ')[1].removesuffix('\r\n\r\n').strip()
-                mail_dict[mail_id] = {'id': mail_id, 'from': mail_from, 'subject': mail_subject, 'time': mail_time}
-            return mail_dict
+                mail_body = self.IMAP.fetch(mail_id, '(BODY[TEXT])')[1][0][1].decode().removesuffix('\r\n').strip()
+                mail_list.append(mail(mail_id, mail_time, mail_from, mail_subject, mail_body))
+            return mail_list
         except Exception as e:
             self.log('!-- Email failed to fetch')
             self.exception(e)
@@ -249,34 +209,30 @@ class Mailbot:
 
 
 
-    def parse_content(self, mail):
+    def parse_subject(self, mail):
+        import shlex
         try:
-            body = mail['body']
-            subject = mail['subject']
+            subject = mail.MAIL_SUBJECT
             arguments = subject.split(' ')
             if len(arguments) != 2:
                 raise ValueError('Invalid subject')
             # only allow alphanumeric characters, hyphen, and period
             allowed_chars = 'abcdefghijklmnopqrstuvwxyz0123456789.-'
-            if not all(char in allowed_chars for char in body.lower()) or not all(char in allowed_chars for char in arguments[0].lower()) or not all(char in allowed_chars for char in arguments[1].lower()):
-                raise ValueError('Invalid body')
             if not all(char in allowed_chars for char in arguments[0].lower()) or not all(char in allowed_chars for char in arguments[1].lower()):
                 raise ValueError('Invalid subject')
             # filter anyway to prevent injection
             self.FUNCTION = shlex.quote(''.join(filter(lambda char: char in allowed_chars, arguments[0].lower())))
             self.INPUT = shlex.quote(''.join(filter(lambda char: char in allowed_chars, arguments[1].lower())))
-            self.BODY = shlex.quote(''.join(filter(lambda char: char in allowed_chars, body.lower())))
             return True
         except ValueError:
-            message = 'Invalid mail content. Please use the following format: <function> <input>. Example: "whois example.com." + \
-            "Alternative batch-requests (max. 5): <function> <batch>. Example: Subject: "whois batch" Body: "example.com\nexample.org\nexample.net"'
+            message = 'Invalid subject. Please use the following format: <function> <input>. Example: "whois example.com"'
             commands = "Available commands:\n" \
             " whois <domain/ip> - Retrieve whois data for a domain or IP address\n" \
             " iplookup <domain/ip> - Retrieve IP lookup data for a domain or IP address\n" \
             " geoip <domain/ip> - Retrieve GeoIP data for a domain or IP address\n" \
             " arecord <domain> - Retrieve A record data for a domain\n" \
             " report <domain/ip> - Retrieve all available data for a domain or IP address"
-            self.send_email(mail['from'], 'osintbot invalid mail: "' + mail['subject'] + '"', message + '\n\n' + commands)
+            self.send_email(mail.MAIL_FROM, 'osintbot invalid subject: "' + mail.MAIL_SUBJECT + '"', message + '\n\n' + commands)
             return False
 
             
@@ -286,10 +242,7 @@ class Mailbot:
 
     def run_function(self):
         if self.FUNCTION and self.INPUT:
-            if self.BODY is not None and self.INPUT == 'batch':
-                self.BODY = [shlex.quote(line) for line in self.BODY.split('\n')]
-                self.log(f"--> Running batch function: '{self.FUNCTION}' with input: '{self.BODY}'")
-            elif self.FUNCTION == 'whois':
+            if self.FUNCTION == 'whois':
                 import osintkit.whois as whois
                 response = whois.request(self.INPUT)
             elif self.FUNCTION == 'geoip':

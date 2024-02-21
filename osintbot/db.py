@@ -25,7 +25,7 @@ class Database:
                 );"""
     MAIL_TABLE = """CREATE TABLE IF NOT EXISTS mail (
                     id integer PRIMARY KEY,
-                    tbl_expired integer DEFAULT 0,
+                    tbl_refused integer DEFAULT 0,
                     tbl_timestamp text DEFAULT CURRENT_TIMESTAMP,
                     tbl_from text NOT NULL,
                     tbl_subject text NOT NULL
@@ -213,8 +213,8 @@ class Database:
 
 
 
-    def mail_insert(self, mail_expire: int, mail_from: str, mail_subject: str) -> None:
+    def mail_insert(self, mail_refuse: int, mail_from: str, mail_subject: str) -> None:
         self.db_run_query(
-            "INSERT INTO mail (tbl_expired, tbl_from, tbl_subject) VALUES (?, ?, ?)",
-            (mail_expire, mail_from, mail_subject)
+            "INSERT INTO mail (tbl_refused, tbl_from, tbl_subject) VALUES (?, ?, ?)",
+            (mail_refuse, mail_from, mail_subject)
         )
