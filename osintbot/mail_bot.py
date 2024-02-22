@@ -43,23 +43,20 @@ class Mailbot:
         while True:
             mail_list = self.fetch_email()
             if mail_list:
-                self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Emails found: {len(mail_list)}") if mail_list else None
+                self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Emails found: {len(mail_list)}")
                 expired_mails = self.filter_expired_email(mail_list)
-                mail_list = self.mail_filter(mail_list, expired_mails)
                 rejected_mails = self.filter_rejected_email(mail_list)
-                mail_list = self.mail_filter(mail_list, rejected_mails)
                 delete_mails = list(set(expired_mails + rejected_mails))
-                if mail_list:
-                    for mail in mail_list:
-                        self.log(f"Processing email: {mail.MAIL_ID} - time: {mail.MAIL_TIME}, from: {mail.MAIL_FROM}, subject: {mail.MAIL_SUBJECT}")
-                        time.sleep(1)
-                        if not mail.REQUEST_STATUS:
-                            self.log(f"--> Invalid request: {mail.MAIL_SUBJECT}")
-                            self.send_email(mail.MAIL_FROM, 'osintbot invalid request: "' + mail.MAIL_SUBJECT + '"', self.HELP)
-                            delete_mails.append(mail)
-                            continue
+                valid_mails = [mail for mail in mail_list if mail not in delete_mails]
+                for mail in valid_mails:
+                    self.log(f"Processing email: {mail.MAIL_ID} - time: {mail.MAIL_TIME}, from: {mail.MAIL_FROM}, subject: {mail.MAIL_SUBJECT}")
+                    time.sleep(1)
+                    if not mail.REQUEST_STATUS:
+                        self.log(f"--> Invalid request: {mail.MAIL_SUBJECT}")
+                        self.send_email(mail.MAIL_FROM, 'osintbot invalid request: "' + mail.MAIL_SUBJECT + '"', self.HELP)
+                    else:
                         self.send_email(mail.MAIL_FROM, 'osintbot response to: "' + mail.REQUEST_FUNCTION + ' ' + mail.REQUEST_ARG + '"', self.run_function(mail))
-                        delete_mails.append(mail)
+                    delete_mails.append(mail)
                 self.delete_email(delete_mails)
 
             if time.time() - current_time > self.connection_expire:
@@ -68,18 +65,6 @@ class Mailbot:
                 current_time = time.time()
                 self.imap_connect()
             time.sleep(30)
-
-    def mail_filter(self, mail_list, filter_list):
-        try:
-            filtered_mail_list = []
-            filter_list = [mail.MAIL_ID for mail in filter_list]
-            for mail in mail_list:
-                if mail.MAIL_ID not in filter_list:
-                    filtered_mail_list.append(mail)
-            return filtered_mail_list
-        except Exception as e:
-            self.log('!-- Could not filter emails')
-            self.exception(e)
 
 
 
