@@ -20,9 +20,6 @@ def main(env_instance, db_instance):
     document_path = "documents/"
     os.makedirs(document_path, exist_ok=True)
 
-    log_path = "logs/"
-    os.makedirs(log_path, exist_ok=True)
-
     about_message = \
         "This bot was created by bitdruid.\n" + \
         "Current Version is: {}\n\n".format(__version__) + \

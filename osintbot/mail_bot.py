@@ -1,5 +1,4 @@
 import os
-import sys
 from dotenv import load_dotenv
 import time
 import smtplib
@@ -7,6 +6,7 @@ import imaplib
 
 import osintbot.datarequest as datarequest
 import osintbot.mail as m
+import osintbot.log as log
 
 import osintkit.helper as kit_helper
 
@@ -20,7 +20,7 @@ class Mailbot:
     " iplookup <domain/ip> - Retrieve IP lookup data for a domain or IP address\n" \
     " geoip <domain/ip> - Retrieve GeoIP data for a domain or IP address\n" \
     " arecord <domain> - Retrieve A record data for a domain\n" \
-    " report <domain/ip> - Retrieve all available data for a domain or IP address"
+    " report <domain/ip> - Retrieve all available data for a domain or IP address\n"
 
     def __init__(self, env_instance, db_instance):
         self.mail_expire = 360
@@ -43,24 +43,25 @@ class Mailbot:
         while True:
             mail_list = self.fetch_email()
             if mail_list:
-                self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Emails found: {len(mail_list)}")
+                log.log("mail", f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Emails found: {len(mail_list)}")
                 expired_mails = self.filter_expired_email(mail_list)
+                mail_list = [mail for mail in mail_list if mail not in expired_mails]
                 rejected_mails = self.filter_rejected_email(mail_list)
+                mail_list = [mail for mail in mail_list if mail not in rejected_mails]
                 delete_mails = list(set(expired_mails + rejected_mails))
-                valid_mails = [mail for mail in mail_list if mail not in delete_mails]
-                for mail in valid_mails:
-                    self.log(f"Processing email: {mail.MAIL_ID} - time: {mail.MAIL_TIME}, from: {mail.MAIL_FROM}, subject: {mail.MAIL_SUBJECT}")
+                for mail in mail_list:
+                    log.log("mail", f"Processing email: {mail.MAIL_ID} - time: {mail.MAIL_TIME}, from: {mail.MAIL_FROM}, subject: {mail.MAIL_SUBJECT}")
                     time.sleep(1)
                     if not mail.REQUEST_STATUS:
-                        self.log(f"--> Invalid request: {mail.MAIL_SUBJECT}")
+                        log.log("mail", f"--> Invalid request: {mail.MAIL_SUBJECT}")
                         self.send_email(mail.MAIL_FROM, 'osintbot invalid request: "' + mail.MAIL_SUBJECT + '"', self.HELP)
                     else:
-                        self.send_email(mail.MAIL_FROM, 'osintbot response to: "' + mail.REQUEST_FUNCTION + ' ' + mail.REQUEST_ARG + '"', self.run_function(mail))
+                        self.send_email(mail.MAIL_FROM, 'osintbot response to: "' + mail.REQUEST_FUNCTION + ' ' + mail.REQUEST_TARGET + '"', self.run_function(mail))
                     delete_mails.append(mail)
                 self.delete_email(delete_mails)
 
             if time.time() - current_time > self.connection_expire:
-                self.log(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Connection expired. Reconnecting to IMAP server {self.env_instance.imap_server}.")
+                log.log("mail", f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Connection expired. Reconnecting to IMAP server {self.env_instance.imap_server}.")
                 self.imap_disconnect()
                 current_time = time.time()
                 self.imap_connect()
@@ -75,8 +76,8 @@ class Mailbot:
             self.IMAP = imaplib.IMAP4_SSL(self.env_instance.imap_server)
             self.IMAP.login(self.env_instance.mail_user, self.env_instance.mail_password)
         except Exception as e:
-            self.log('!-- IMAP connection failed')
-            self.exception(e)
+            log.log("mail", '!-- IMAP connection failed')
+            log.exception("mail", e)
 
     def imap_disconnect(self):
         self.IMAP.close()
@@ -87,8 +88,8 @@ class Mailbot:
             self.SMTP.starttls()
             self.SMTP.login(self.env_instance.mail_user, self.env_instance.mail_password)
         except Exception as e:
-            self.log('!-- SMTP connection failed')
-            self.exception(e)
+            log.log("mail", '!-- SMTP connection failed')
+            log.exception("mail", e)
 
     def smtp_disconnect(self):
         self.SMTP.quit()
@@ -102,24 +103,24 @@ class Mailbot:
             for mail in mail_list:
                 self.IMAP.store(mail.MAIL_ID, '+FLAGS', '\\Deleted')
             self.IMAP.expunge()
-            self.log(f"--> Emails deleted successfully: {len(mail_list)}") if mail_list else None
+            log.log("mail", f"--> Emails deleted successfully: {len(mail_list)}") if mail_list else None
         except Exception as e:
-            self.log('!-- Email failed to delete')
-            self.exception(e)
+            log.log("mail", '!-- Email failed to delete')
+            log.exception("mail", e)
         
     def filter_expired_email(self, mail_list: list) -> None:
         try:
             expired_emails = []
             for mail in mail_list:
                 if time.time() - time.mktime(time.strptime(mail.MAIL_TIME, '%d-%b-%Y %H:%M:%S')) > self.mail_expire:
-                    self.log(f"--> Expired email {mail.MAIL_ID}. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}")
+                    log.log("mail", f"--> Expired email {mail.MAIL_ID}. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}")
                     expired_emails.append(mail)
                 self.db_instance.mail_insert(True, mail.MAIL_FROM, mail.MAIL_SUBJECT)
-            self.log(f"--> Expired emails overall: {len(expired_emails)}") if expired_emails else None
+            log.log("mail", f"--> Expired emails overall: {len(expired_emails)}") if expired_emails else None
             return expired_emails
         except Exception as e:
-            self.log('!-- Could not sort expired emails')
-            self.exception(e)
+            log.log("mail", '!-- Could not sort expired emails')
+            log.exception("mail", e)
     def filter_rejected_email(self, mail_list: list) -> None:
         try:
             rejected_sender = []
@@ -136,7 +137,7 @@ class Mailbot:
             for mail in mail_list:
                 if mail.MAIL_FROM in oldest_mail_by_sender:
                     if mail.MAIL_ID != oldest_mail_by_sender[mail.MAIL_FROM].MAIL_ID:
-                        self.log(f"--> Rejected email. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}")
+                        log.log("mail", f"--> Rejected email. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}")
                         rejected_mails.append(mail)
                         if mail.MAIL_FROM not in rejected_sender:
                             rejected_sender.append(mail.MAIL_FROM)
@@ -149,11 +150,11 @@ class Mailbot:
                 message += f"\n\nThe following emails were deleted:\n{chr(10).join(deleted_mails)}"
                 self.send_email(sender, 'osintbot rejected emails', message)
             # remove all remaining mails of the sender
-            self.log(f"--> Rejected emails overall: {len(rejected_mails)}") if rejected_mails else None
+            log.log("mail", f"--> Rejected emails overall: {len(rejected_mails)}") if rejected_mails else None
             return rejected_mails
         except Exception as e:
-            self.log('!-- Could not sort rejected emails')
-            self.exception(e)
+            log.log("mail", '!-- Could not sort rejected emails')
+            log.exception("mail", e)
 
 
 
@@ -162,13 +163,13 @@ class Mailbot:
     def send_email(self, to: str, subject: str, message: str) -> None:
         try:
             self.smtp_connect()
-            message = f'Subject: {subject}\n\n{message}'
+            message = f'Subject: {subject}\r\n\r\n{message}\r\n'
             self.SMTP.sendmail(self.env_instance.mail_user, to, message.encode('utf-8'))
             self.SMTP.quit()
-            self.log(f"--> Response sent successfully. To: {to}, Subject: {subject}")
+            log.log("mail", f"--> Response sent successfully. To: {to}, Subject: {subject}")
         except Exception as e:
-            self.log(f"!-- Email failed to send. To: {to}, Subject: {subject}")
-            self.exception(e)
+            log.log("mail", f"!-- Email failed to send. To: {to}, Subject: {subject}")
+            log.exception("mail", e)
 
     def fetch_email(self):
         try:
@@ -177,47 +178,36 @@ class Mailbot:
             messages = messages[0].split()
             mail_list = []
             for mail_id in messages:
-                mail_list.append(m.Mail(mail_id, self.IMAP.fetch(mail_id, '(RFC822)')[1][0][1].decode()))
+                mail_list.append(m.Mail(mail_id, self.IMAP.fetch(mail_id, '(RFC822)')[1][0][1].decode('utf-8')))
             return mail_list
         except Exception as e:
-            self.log('!-- Email failed to fetch')
-            self.exception(e)
+            log.log("mail", '!-- Email failed to fetch')
+            log.exception("mail", e)
 
 
 
 
 
     def run_function(self, mail: m.Mail):
-        if mail.REQUEST_FUNCTION and mail.REQUEST_ARG:
+        if mail.REQUEST_FUNCTION and mail.REQUEST_TARGET:
             if mail.REQUEST_FUNCTION == 'whois':
                 import osintkit.whois as whois
-                response = whois.request(mail.REQUEST_ARG)
+                response = whois.request(mail.REQUEST_TARGET)
             elif mail.REQUEST_FUNCTION == 'geoip':
                 import osintkit.geoip as geoip
-                response = geoip.request(mail.REQUEST_ARG)
+                response = geoip.request(mail.REQUEST_TARGET)
             elif mail.REQUEST_FUNCTION == 'iplookup':
                 import osintkit.iplookup as iplookup
-                response = iplookup.request(mail.REQUEST_ARG)
+                response = iplookup.request(mail.REQUEST_TARGET)
             elif mail.REQUEST_FUNCTION == 'arecord':
                 import osintkit.arecord as arecord
-                response = arecord.request(mail.REQUEST_ARG)
+                response = arecord.request(mail.REQUEST_TARGET)
             elif mail.REQUEST_FUNCTION == 'report':
-                response = datarequest.full_report(mail.REQUEST_ARG)
+                response = datarequest.full_report(mail.REQUEST_TARGET)
             else:
                 response = "Invalid function"
-            self.log(f"--> Running function: '{mail.REQUEST_FUNCTION}' with input: '{mail.REQUEST_ARG}'")
+            log.log("mail", f"--> Running function: '{mail.REQUEST_FUNCTION}' with input: '{mail.REQUEST_TARGET}'")
             return kit_helper.json_to_string(response)
-        
-    def exception(self, e):
-        self.log(f"!-- Error function: {sys.exc_info()[-1].tb_frame.f_code.co_name}")
-        self.log(f"!-- Error line: {sys.exc_info()[-1].tb_lineno}")
-        self.log(f"!-- Error stacktrace: {e}")
-
-    def log(self, message):
-        print(message)
-        os.makedirs('log', exist_ok=True)
-        with open('logs/mail.log', 'a') as log:
-            log.write(message + '\n')
 
 def main():
     if os.path.isfile('.env'):
