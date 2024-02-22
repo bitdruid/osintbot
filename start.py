@@ -4,7 +4,6 @@ import dotenv
 import osintbot.mail_bot as mail_bot
 import osintbot.discord_bot as discord_bot
 import osintbot.db as db
-import osintbot.log as log
 
 if __name__ == "__main__":
 
