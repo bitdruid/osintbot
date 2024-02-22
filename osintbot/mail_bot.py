@@ -15,8 +15,12 @@ class Mailbot:
     IMAP = None
     SMTP = None
 
-    FUNCTION = None
-    INPUT = None
+    HELP = "Available commands:\n" \
+    " whois <domain/ip> - Retrieve whois data for a domain or IP address\n" \
+    " iplookup <domain/ip> - Retrieve IP lookup data for a domain or IP address\n" \
+    " geoip <domain/ip> - Retrieve GeoIP data for a domain or IP address\n" \
+    " arecord <domain> - Retrieve A record data for a domain\n" \
+    " report <domain/ip> - Retrieve all available data for a domain or IP address"
 
     def __init__(self, env_instance, db_instance):
         self.mail_expire = 360
@@ -49,10 +53,12 @@ class Mailbot:
                     for mail in mail_list:
                         self.log(f"Processing email: {mail.MAIL_ID} - time: {mail.MAIL_TIME}, from: {mail.MAIL_FROM}, subject: {mail.MAIL_SUBJECT}")
                         time.sleep(1)
-                        if not self.parse_subject(mail):
+                        if not mail.REQUEST_STATUS:
+                            self.log(f"--> Invalid request: {mail.MAIL_SUBJECT}")
+                            self.send_email(mail.MAIL_FROM, 'osintbot invalid request: "' + mail.MAIL_SUBJECT + '"', self.HELP)
                             delete_mails.append(mail)
                             continue
-                        self.send_email(mail.MAIL_FROM, 'osintbot response to: "' + self.FUNCTION + ' ' + self.INPUT + '"', self.run_function())
+                        self.send_email(mail.MAIL_FROM, 'osintbot response to: "' + mail.REQUEST_FUNCTION + ' ' + mail.REQUEST_ARG + '"', self.run_function(mail))
                         delete_mails.append(mail)
                 self.delete_email(delete_mails)
 
@@ -186,11 +192,7 @@ class Mailbot:
             messages = messages[0].split()
             mail_list = []
             for mail_id in messages:
-                mail_time = self.IMAP.fetch(mail_id, '(INTERNALDATE)')[1][0].decode().split('INTERNALDATE ')[1].split('"')[1].split(' +')[0].strip()
-                mail_from = self.IMAP.fetch(mail_id, '(BODY[HEADER.FIELDS (FROM)])')[1][0][1].decode().split('<')[1].split('>')[0].strip()
-                mail_subject = self.IMAP.fetch(mail_id, '(BODY[HEADER.FIELDS (SUBJECT)])')[1][0][1].decode().split('Subject: ')[1].removesuffix('\r\n\r\n').strip()
-                mail_body = self.IMAP.fetch(mail_id, '(BODY[TEXT])')[1][0][1].decode().removesuffix('\r\n').strip()
-                mail_list.append(m.Mail(mail_id, mail_time, mail_from, mail_subject, mail_body))
+                mail_list.append(m.Mail(mail_id, self.IMAP.fetch(mail_id, '(RFC822)')[1][0][1].decode()))
             return mail_list
         except Exception as e:
             self.log('!-- Email failed to fetch')
@@ -200,56 +202,25 @@ class Mailbot:
 
 
 
-    def parse_subject(self, mail):
-        import shlex
-        try:
-            subject = mail.MAIL_SUBJECT
-            arguments = subject.split(' ')
-            if len(arguments) != 2:
-                raise ValueError('Invalid subject')
-            # only allow alphanumeric characters, hyphen, and period
-            allowed_chars = 'abcdefghijklmnopqrstuvwxyz0123456789.-'
-            if not all(char in allowed_chars for char in arguments[0].lower()) or not all(char in allowed_chars for char in arguments[1].lower()):
-                raise ValueError('Invalid subject')
-            # filter anyway to prevent injection
-            self.FUNCTION = shlex.quote(''.join(filter(lambda char: char in allowed_chars, arguments[0].lower())))
-            self.INPUT = shlex.quote(''.join(filter(lambda char: char in allowed_chars, arguments[1].lower())))
-            return True
-        except ValueError:
-            message = 'Invalid subject. Please use the following format: <function> <input>. Example: "whois example.com"'
-            commands = "Available commands:\n" \
-            " whois <domain/ip> - Retrieve whois data for a domain or IP address\n" \
-            " iplookup <domain/ip> - Retrieve IP lookup data for a domain or IP address\n" \
-            " geoip <domain/ip> - Retrieve GeoIP data for a domain or IP address\n" \
-            " arecord <domain> - Retrieve A record data for a domain\n" \
-            " report <domain/ip> - Retrieve all available data for a domain or IP address"
-            self.send_email(mail.MAIL_FROM, 'osintbot invalid subject: "' + mail.MAIL_SUBJECT + '"', message + '\n\n' + commands)
-            return False
-
-            
-
-
-    
-
-    def run_function(self):
-        if self.FUNCTION and self.INPUT:
-            if self.FUNCTION == 'whois':
+    def run_function(self, mail: m.Mail):
+        if mail.REQUEST_FUNCTION and mail.REQUEST_ARG:
+            if mail.REQUEST_FUNCTION == 'whois':
                 import osintkit.whois as whois
-                response = whois.request(self.INPUT)
-            elif self.FUNCTION == 'geoip':
+                response = whois.request(mail.REQUEST_ARG)
+            elif mail.REQUEST_FUNCTION == 'geoip':
                 import osintkit.geoip as geoip
-                response = geoip.request(self.INPUT)
-            elif self.FUNCTION == 'iplookup':
+                response = geoip.request(mail.REQUEST_ARG)
+            elif mail.REQUEST_FUNCTION == 'iplookup':
                 import osintkit.iplookup as iplookup
-                response = iplookup.request(self.INPUT)
-            elif self.FUNCTION == 'arecord':
+                response = iplookup.request(mail.REQUEST_ARG)
+            elif mail.REQUEST_FUNCTION == 'arecord':
                 import osintkit.arecord as arecord
-                response = arecord.request(self.INPUT)
-            elif self.FUNCTION == 'report':
-                response = datarequest.full_report(self.INPUT)
+                response = arecord.request(mail.REQUEST_ARG)
+            elif mail.REQUEST_FUNCTION == 'report':
+                response = datarequest.full_report(mail.REQUEST_ARG)
             else:
                 response = "Invalid function"
-            self.log(f"--> Running function: '{self.FUNCTION}' with input: '{self.INPUT}'")
+            self.log(f"--> Running function: '{mail.REQUEST_FUNCTION}' with input: '{mail.REQUEST_ARG}'")
             return kit_helper.json_to_string(response)
         
     def exception(self, e):
