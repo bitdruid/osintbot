@@ -82,7 +82,12 @@ class Mailbot:
                 log.exception("mail", e)
                 time.sleep(60)
     def imap_disconnect(self):
-        self.IMAP.close()
+        try:
+            self.IMAP.close()
+            self.IMAP.logout()
+        except Exception as e:
+            log.log("mail", '!-- IMAP disconnection failed')
+            log.exception("mail", e)
 
     def smtp_connect(self):
         while Exception:
@@ -96,7 +101,11 @@ class Mailbot:
                 log.exception("mail", e)
                 time.sleep(60)
     def smtp_disconnect(self):
-        self.SMTP.quit()
+        try:
+            self.SMTP.quit()
+        except Exception as e:
+            log.log("mail", '!-- SMTP disconnection failed')
+            log.exception("mail", e)
 
 
 
