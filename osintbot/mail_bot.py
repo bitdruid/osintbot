@@ -72,25 +72,29 @@ class Mailbot:
 
 
     def imap_connect(self):
-        try:
-            self.IMAP = imaplib.IMAP4_SSL(self.env_instance.imap_server)
-            self.IMAP.login(self.env_instance.mail_user, self.env_instance.mail_password)
-        except Exception as e:
-            log.log("mail", '!-- IMAP connection failed')
-            log.exception("mail", e)
-
+        while Exception:
+            try:
+                self.IMAP = imaplib.IMAP4_SSL(self.env_instance.imap_server)
+                self.IMAP.login(self.env_instance.mail_user, self.env_instance.mail_password)
+                break
+            except Exception as e:
+                log.log("mail", '!-- IMAP connection failed')
+                log.exception("mail", e)
+                time.sleep(60)
     def imap_disconnect(self):
         self.IMAP.close()
 
     def smtp_connect(self):
-        try:
-            self.SMTP = smtplib.SMTP(self.env_instance.smtp_server, self.env_instance.smtp_port)
-            self.SMTP.starttls()
-            self.SMTP.login(self.env_instance.mail_user, self.env_instance.mail_password)
-        except Exception as e:
-            log.log("mail", '!-- SMTP connection failed')
-            log.exception("mail", e)
-
+        while Exception:
+            try:
+                self.SMTP = smtplib.SMTP(self.env_instance.smtp_server, self.env_instance.smtp_port)
+                self.SMTP.starttls()
+                self.SMTP.login(self.env_instance.mail_user, self.env_instance.mail_password)
+                break
+            except Exception as e:
+                log.log("mail", '!-- SMTP connection failed')
+                log.exception("mail", e)
+                time.sleep(60)
     def smtp_disconnect(self):
         self.SMTP.quit()
 
