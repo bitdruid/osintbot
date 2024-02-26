@@ -6,6 +6,10 @@ from datetime import datetime
 
 import osintbot.send as send
 import osintkit.helper as kit_helper
+import osintbot.log as log
+
+import aiohttp.client_exceptions
+
 from osintbot.__version__ import __version__
 
 def main(env_instance, db_instance):
@@ -382,7 +386,13 @@ def main(env_instance, db_instance):
 
 
 
-    bot.run(env_instance.bot_token)
+    while aiohttp.client_exceptions.ClientConnectorError:
+        try:
+            bot.run(env_instance.bot_token)
+        except aiohttp.client_exceptions.ClientConnectorError as e:
+            log.log("discord", "!-- Could not connect to discord API. Retrying in 1 minute.")
+            log.exception("discord", e)
+            time.sleep(60)
 
 if __name__ == "__main__":
     main()
