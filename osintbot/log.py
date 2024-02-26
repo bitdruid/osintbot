@@ -1,5 +1,6 @@
 import os
 import sys
+from datetime import datetime
 
 def exception(type: str, e: Exception) -> None:
     log(type, f"!-- Error function: {sys.exc_info()[-1].tb_frame.f_code.co_name}")
@@ -7,6 +8,7 @@ def exception(type: str, e: Exception) -> None:
     log(type, f"!-- Error stacktrace: {e}")
 
 def log(type: str, message: str) -> None:
+    message = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {type.upper()} - {message}"
     print(message)
     os.makedirs('logs', exist_ok=True)
     if type == 'mail':

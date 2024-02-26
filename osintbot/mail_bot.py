@@ -43,7 +43,7 @@ class Mailbot:
         while True:
             mail_list = self.fetch_email()
             if mail_list:
-                log.log("mail", f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Emails found: {len(mail_list)}")
+                log.log("mail", f"----- Emails found: {len(mail_list)} -----")
                 expired_mails = self.filter_expired_email(mail_list)
                 mail_list = [mail for mail in mail_list if mail not in expired_mails]
                 rejected_mails = self.filter_rejected_email(mail_list)
