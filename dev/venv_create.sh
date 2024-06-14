@@ -11,7 +11,10 @@ fi
     python3 -m venv "$TARGET_PATH/.venv"
 
 # update pip
-"$TARGET_PATH/.venv/bin/python" -m pip install --upgrade pip
+"$TARGET_PATH/.venv/bin/python" -m pip install --upgrade pip setuptools wheel
 
 # install requirements
-"$TARGET_PATH/.venv/bin/python" -m pip install -r "$TARGET_PATH/osintbot/requirements.txt"
+"$TARGET_PATH/.venv/bin/python" -m pip install -r "$TARGET_PATH/requirements-bot.txt"
+
+# install osintkit
+"$TARGET_PATH/.venv/bin/python" -m pip install -e "$TARGET_PATH"
