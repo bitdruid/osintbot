@@ -37,7 +37,9 @@ class MailResponse:
                 else:
                     self.attach_file(response_contents['result'])
 
-                # if there are multiple responses, check if they are files or text
+            # if there are multiple responses, check if they are files or text
+            if isinstance(response_contents, list):
+                
                 for entry in response_contents:
                     if isinstance(entry['result'], list): # add all results of the entry in list as attachments
                         for file_path in entry['result']:
