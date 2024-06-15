@@ -212,19 +212,17 @@ def main(env_instance, db_instance):
 
 
 
-    @bot.command(name='mailheader', description='Analyzes a provided mail header')
-    async def mailheader(ctx, input=None):
-        if not input:
-            await ctx.send("{}".format(ctx.author.mention) + "\n" + "**Usage:**\n/mailheader <mail header>")
-            return
-        mailheader_data = mailheader.request(input)
-        if mailheader_data:
-            await output_text_result(ctx, input, mailheader_data, "mailheader")
+    import osintkit.screenshot as screenshot
+    @commands.cooldown(1, 15, commands.BucketType.guild)
+    @bot.command(name='screenshot', description='Takes a screenshot of a website')
+    async def query_screenshot(ctx, input=None):
+        await datarequest_input_check(ctx, "screenshot", input)
+        screenshot_data = screenshot.request(input, document_path)
+        if screenshot_data:
+            for file in screenshot_data:
+                await send.message(ctx, f"Screenshot for {input}:", file=discord.File(file, filename=file))
         else:
-            failed_message = \
-                "Could not analyze or recognize this mail header. " + \
-                "Check if your file is a valid mail header."
-            await ctx.send("{}".format(ctx.author.mention) + "\n" + failed_message)
+            await datarequest_failed(ctx, "screenshot", input)
 
 
 
