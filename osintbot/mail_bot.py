@@ -23,7 +23,7 @@ class Mailbot:
     " geoip <domain/ip> - Retrieve GeoIP data for a domain or IP address\n" \
     " arecord <domain> - Retrieve A record data for a domain\n" \
     " report <domain/ip> - Retrieve all available data for a domain or IP address\n" \
-    " screenshot <url> - Take a full-page screenshot of a URL\n" \
+    " screenshot <url> - Take a full-page screenshot of a URL and receive the image + printable A4 PDF\n" \
     "\n" \
     "Write a single request in the subject line or the body and multiple requests in the body.\n" \
     "Example single subject request: 'subject = whois example.com'\n" \
@@ -31,6 +31,7 @@ class Mailbot:
     "Example multiple body request: 'subject = whois, body = example.com <newline> example.net <newline> example.org'\n"
 
     FUNCTIONS = {
+        'help' : None,
         'whois': datarequest.single_report,
         'geoip': datarequest.single_report,
         'iplookup': datarequest.single_report,
@@ -195,7 +196,7 @@ class Mailbot:
                 rejected_mails_response.set_sender(self.env_instance.mail_user)
                 rejected_mails_response.set_receiver(sender)
                 rejected_mails_response.set_subject('osintbot rejected emails')
-                rejected_mails_response.set_content(message)
+                rejected_mails_response.set_body(message)
                 self.send_email(rejected_mails_response)
             # remove all remaining mails of the sender
             log.log("mail", f"--> Rejected emails overall: {len(rejected_mails)}") if rejected_mails else None
@@ -234,6 +235,8 @@ class Mailbot:
 
     def run_function(self, mail_request: MailRequest):
         try:
+            if mail_request.REQUEST_FUNCTION == 'help':
+                return self.HELP
             response = []
             function = self.FUNCTIONS[mail_request.REQUEST_FUNCTION]
             for target in mail_request.REQUEST_TARGET:
@@ -284,6 +287,7 @@ class Mailbot:
                 mail_request.REQUEST_STATUS = True
             else:
                 log.log("mail", f"Invalid request function: '{function}'")
+
                 mail_request.REQUEST_STATUS = False
         else:
             mail_request.REQUEST_STATUS = False

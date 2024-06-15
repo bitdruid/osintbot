@@ -12,11 +12,11 @@ Playing around with possibilities of an osint-bot for discord inside a docker co
 - [x] arecord
 - [x] iplookup
 - [x] geoip
+- [x] screenshot with printable pdf
 
 ## planned
 
 - [ ] portscan
-- [ ] mail analysis
 
 ## Installation
 
