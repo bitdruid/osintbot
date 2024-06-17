@@ -17,29 +17,6 @@ class Mailbot:
     IMAP = None
     SMTP = None
 
-    HELP = "Available commands:\n" \
-    " whois <domain/ip> - Retrieve whois data for a domain or IP address\n" \
-    " iplookup <domain/ip> - Retrieve IP lookup data for a domain or IP address\n" \
-    " geoip <domain/ip> - Retrieve GeoIP data for a domain or IP address\n" \
-    " arecord <domain> - Retrieve A record data for a domain\n" \
-    " report <domain/ip> - Retrieve all available data for a domain or IP address\n" \
-    " screenshot <url> - Take a full-page screenshot of a URL and receive the image + printable A4 PDF\n" \
-    "\n" \
-    "Write a single request in the subject line or the body and multiple requests in the body.\n" \
-    "Example single subject request: 'subject = whois example.com'\n" \
-    "Example single body request: 'subject = whois, body = example.com'\n" \
-    "Example multiple body request: 'subject = whois, body = example.com <newline> example.net <newline> example.org'\n"
-
-    FUNCTIONS = {
-        'help' : None,
-        'whois': datarequest.single_report,
-        'geoip': datarequest.single_report,
-        'iplookup': datarequest.single_report,
-        'arecord': datarequest.single_report,
-        'report': datarequest.full_report,
-        'screenshot': datarequest.file_output_report
-    }
-
     def __init__(self, env_instance, db_instance):
         self.mail_expire = 360
         self.connection_expire = 3600
@@ -224,7 +201,8 @@ class Mailbot:
             messages = messages[0].split()
             mail_list = []
             for mail_id in messages:
-                mail_list.append(MailRequest(mail_id, self.IMAP.fetch(mail_id, '(RFC822)')[1][0][1].decode('utf-8')))
+                mail_payload = self.IMAP.fetch(mail_id, '(RFC822)')[1][0][1].decode('utf-8')
+                mail_list.append(MailRequest(mail_id, mail_payload))
             return mail_list
         except Exception as e:
             log.exception("mail", "Email failed to fetch", e)
@@ -233,6 +211,28 @@ class Mailbot:
 
 
 
+    HELP = "Available commands:\n" \
+    " whois <domain/ip> - Retrieve whois data for a domain or IP address\n" \
+    " iplookup <domain/ip> - Retrieve IP lookup data for a domain or IP address\n" \
+    " geoip <domain/ip> - Retrieve GeoIP data for a domain or IP address\n" \
+    " arecord <domain> - Retrieve A record data for a domain\n" \
+    " report <domain/ip> - Retrieve all available data for a domain or IP address\n" \
+    " screenshot <url> - Take a full-page screenshot of a URL and receive the image + printable A4 PDF\n" \
+    "\n" \
+    "Write a single request in the subject line or the body and multiple requests in the body.\n" \
+    "Example single subject request: 'subject = whois example.com'\n" \
+    "Example single body request: 'subject = whois, body = example.com'\n" \
+    "Example multiple body request: 'subject = whois, body = example.com <newline> example.net <newline> example.org'\n"
+
+    FUNCTIONS = {
+        'help' : None,
+        'whois': datarequest.single_report,
+        'geoip': datarequest.single_report,
+        'iplookup': datarequest.single_report,
+        'arecord': datarequest.single_report,
+        'report': datarequest.full_report,
+        'screenshot': datarequest.file_output_report
+    }
     def run_function(self, mail_request: MailRequest):
         try:
             if mail_request.REQUEST_FUNCTION == 'help':
@@ -255,39 +255,38 @@ class Mailbot:
         target = []
 
         if len(request) == 0:
-            request_status = False
-            log.log("mail", "No query args in mail subject")
+            request_status = "No query args in mail subject"
+            log.log("mail", request_status)
         elif len(request) == 1:
             target = mail_request.MAIL_BODY.splitlines() if mail_request.MAIL_BODY else []
             if len(target) > 5:
-                request_status = False
-                log.log("mail", "Too many query args in mail body")
+                request_status = "Too many query args in mail body"
+                log.log("mail", request_status)
         elif len(request) == 2:
             target = [request[1]]
         elif len(request) > 2:
-            request_status = False
-            log.log("mail", "Too many query args in mail subject")
+            request_status = "Too many query args in mail subject"
+            log.log("mail", request_status)
 
         function = request[0].lower()
         target = [item.lower() for item in target]
 
         if not all(c in allowed_chars for c in function):
-            request_status = False
-            log.log("mail", "Invalid characters in function")
+            request_status = "Invalid characters in function"
+            log.log("mail", request_status)
 
         for item in target:
             if not all(c in allowed_chars for c in item):
-                request_status = False
-                log.log("mail", "Invalid characters in query args")
+                request_status = "Invalid characters in query args"
+                log.log("mail", request_status)
 
-        if request_status:
+        if isinstance(request_status, bool):
             if function in self.FUNCTIONS:
                 mail_request.REQUEST_FUNCTION = shlex.quote(function)
                 mail_request.REQUEST_TARGET = [shlex.quote(item) for item in target]
                 mail_request.REQUEST_STATUS = True
             else:
                 log.log("mail", f"Invalid request function: '{function}'")
-
                 mail_request.REQUEST_STATUS = False
         else:
             mail_request.REQUEST_STATUS = False
