@@ -60,7 +60,7 @@ def screenshot_to_pdf(screenshot_path):
 def check_install():
     if not os.path.exists(os.path.join(Path.home(), ".cache", "ms-playwright")):
         print("Playwright executables not found. Installing...")
-        os.system("playwright install")
+        os.system("playwright install firefox --with-deps")
 
 
 def sanitize_url_to_filename(url: str):
