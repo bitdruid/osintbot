@@ -5,6 +5,8 @@ import time
 import smtplib
 import imaplib
 
+import threading
+
 import osintbot.datarequest as datarequest
 from osintbot.MailRequest import MailRequest
 from osintbot.MailResponse import MailResponse
@@ -17,6 +19,16 @@ class Mailbot:
     IMAP = None
     SMTP = None
 
+    MAIL_FETCH_INTERVAL = 30 # seconds
+    MAIL_PROCESS_INTERVAL = 60 # seconds
+
+    MAIL_RATE_LIMIT = 4 # amount of emails
+    MAIL_RATE_LIMIT_INTERVAL = 60 # seconds
+    MAIL_EXPIRE = 360 # seconds
+
+    MAIL_QUEUE = []
+
+    # initialize the mailbot
     def __init__(self, env_instance, db_instance):
         self.mail_expire = 360
         self.connection_expire = 3600
@@ -24,8 +36,99 @@ class Mailbot:
         self.db_instance = db_instance
         self.mail_run()
 
+    # start the subprocesses for checking and processing mails
+    def mail_run_new(self):
+        check_mail_thread = threading.Thread(target=self.mail_check_new)
+        process_mail_thread = threading.Thread(target=self.mail_process_new)
+        check_mail_thread.start()
+        process_mail_thread.start()
+        check_mail_thread.join()
+        process_mail_thread.join()
 
+    # fetch mails and filter them
+    def mail_check_new(self):
+        current_time = time.time()
+        self.imap_connect()
+        while True:
+            mail_request_list = self.fetch_email()
+            # store all mails in the database
+            for mail in mail_request_list:
+                self.db_instance.mail_insert(False, mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT, mail.REQUEST_FUNCTION, mail.REQUEST_TARGET)
+            # filter mails
+            mail_request_list = self.mail_filter_new(mail_request_list)
+            # add remaining mails to the mail queue
+            for mail in mail_request_list:
+                self.MAIL_QUEUE.append(mail)
+            # periodically reconnect to the IMAP server
+            if time.time() - current_time > self.connection_expire:
+                log.log("mail", f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Connection expired. Reconnecting to IMAP server {self.env_instance.imap_server}.")
+                self.imap_disconnect()
+                current_time = time.time()
+                self.imap_connect()
+            time.sleep(self.MAIL_FETCH_INTERVAL)
+    
+    # process the mail queue
+    def mail_process_new(self):
+        while True:
+            if not self.MAIL_QUEUE.empty():
+                mail = self.MAIL_QUEUE.pop(0)
+                log.log("mail", f"Processing email: {mail.MAIL_ID} - time: {mail.MAIL_TIME}, from: {mail.MAIL_FROM}, subject: {mail.MAIL_SUBJECT}, jobs: {len(mail.REQUEST_TARGET)}")
+                mail_response = MailResponse()
+                mail_response.set_sender(self.env_instance.mail_user)
+                mail_response.set_receiver(mail.MAIL_FROM)
+                mail_response.set_subject(f'osintbot response to: {mail.MAIL_SUBJECT} for {len(mail.REQUEST_TARGET)} jobs')
+                mail_response.set_content(self.run_function(mail))
+                self.send_email(mail_response)
+                self.delete_email([mail])
+                # wait MAIL_PROCESS_INTERVAL seconds before processing the next mail
+                time.sleep(self.MAIL_PROCESS_INTERVAL)
+            # if no mails are in the queue, wait MAIL_FETCH_INTERVAL seconds before checking again
+            time.sleep(self.MAIL_FETCH_INTERVAL)
 
+    # filter the mails
+    def mail_filter_new(self, mail_list: list) -> list:
+
+        # rate limit means that the same sender can only send MAIL_RATE_LIMIT mails per MAIL_RATE_LIMIT_INTERVAL seconds
+        def filter_rate_limit(mail_request: MailRequest) -> str:
+            for mail in mail_list:
+                request_status = f"--> Rate limit exceeded. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}"
+                return request_status
+            else:
+                return True
+
+        # experide means that a mail is only valid for MAIL_EXPIRE seconds
+        def filter_expired(mail_request: MailRequest) -> bool:
+            for mail in mail_list:
+                request_status = f"--> Expired email {mail.MAIL_ID}. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}"
+                return request_status
+            else:
+                return True
+
+        # invalid means that the mail does not contain a valid request that violates the rules
+        def filter_invalid(mail_request: MailRequest) -> bool:
+            for mail in mail_list:
+                self.db_instance.mail_refused(mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT)
+                request_status = f"--> Invalid email {mail.MAIL_ID}. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}"
+                return request_status
+            else:
+                return True
+
+        filtered_mails = []
+        for mail in mail_list:
+            request_status = None
+            request_status = filter_rate_limit(mail)
+            if not isinstance(request_status, str):
+                request_status = filter_expired(mail)
+            if not isinstance(request_status, str):
+                request_status = filter_invalid(mail)
+            if isinstance(request_status, str):
+                log.log("mail", request_status)
+                self.db_instance.mail_refused(mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT)
+                filtered_mails.append(mail)
+        return filtered_mails
+    
+            
+            
 
 
     def mail_run(self):
@@ -65,7 +168,7 @@ class Mailbot:
                 self.imap_disconnect()
                 current_time = time.time()
                 self.imap_connect()
-            time.sleep(30)
+            time.sleep(self.MAIL_FETCH_INTERVAL)
 
 
 
