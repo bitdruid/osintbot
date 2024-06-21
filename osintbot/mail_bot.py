@@ -39,6 +39,10 @@ class Mailbot:
         self.db_instance = db_instance
         self.mail_run()
 
+
+
+
+
     # start the subprocesses for checking and processing mails
     def mail_run_new(self):
         check_mail_thread = threading.Thread(target=self.mail_check_new)
@@ -47,6 +51,10 @@ class Mailbot:
         process_mail_thread.start()
         check_mail_thread.join()
         process_mail_thread.join()
+
+
+
+
 
     # fetch mails and filter them
     def mail_check_new(self):
@@ -87,6 +95,10 @@ class Mailbot:
                 time.sleep(self.MAIL_PROCESS_INTERVAL)
             # if no mails are in the queue, wait MAIL_FETCH_INTERVAL seconds before checking again
             time.sleep(self.MAIL_FETCH_INTERVAL)
+
+
+
+
 
     # filter the mails
     def mail_filter_new(self, mail_list: list) -> list:
@@ -149,53 +161,10 @@ class Mailbot:
                 self.db_instance.mail_refused(mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT)
                 filtered_mails.append(mail)
         return filtered_mails
-    
+
+
             
             
-
-
-    def mail_run(self):
-        """
-        Continuously loops and checks for new emails using IMAP protocol.
-        If a new email is found, it parses the subject, sends a response email, and deletes the original email.
-        The connection to the IMAP server is re-established after a certain period of time.
-        """
-        current_time = time.time()
-        self.imap_connect()
-        while True:
-            mail_request_list = self.fetch_email()
-            if mail_request_list:
-                log.log("mail", f"----- Emails found: {len(mail_request_list)} -----")
-                [self.validate_request(mail) for mail in mail_request_list]
-                [self.db_instance.mail_insert(False, mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT, mail.REQUEST_FUNCTION, mail.REQUEST_TARGET) for mail in mail_request_list]
-                wrong_mails = self.filter_wrong_email(mail_request_list)
-                mail_request_list = [mail for mail in mail_request_list if mail not in wrong_mails]
-                expired_mails = self.filter_expired_email(mail_request_list)
-                mail_request_list = [mail for mail in mail_request_list if mail not in expired_mails]
-                rejected_mails = self.filter_rejected_email(mail_request_list)
-                mail_request_list = [mail for mail in mail_request_list if mail not in rejected_mails]
-                delete_mails = list(set(wrong_mails + expired_mails + rejected_mails))
-                for mail_request in mail_request_list:
-                    log.log("mail", f"Processing email: {mail_request.MAIL_ID} - time: {mail_request.MAIL_TIME}, from: {mail_request.MAIL_FROM}, subject: {mail_request.MAIL_SUBJECT}, jobs: {len(mail_request.REQUEST_TARGET)}")
-                    mail_response = MailResponse()
-                    mail_response.set_sender(self.env_instance.mail_user)
-                    mail_response.set_receiver(mail_request.MAIL_FROM)
-                    mail_response.set_subject(f'osintbot response to: {mail_request.MAIL_SUBJECT} for {len(mail_request.REQUEST_TARGET)} jobs')
-                    mail_response.set_content(self.run_function(mail_request))
-                    self.send_email(mail_response)
-                    delete_mails.append(mail_request)
-                self.delete_email(delete_mails)
-
-            if time.time() - current_time > self.connection_expire:
-                log.log("mail", f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Connection expired. Reconnecting to IMAP server {self.env_instance.imap_server}.")
-                self.imap_disconnect()
-                current_time = time.time()
-                self.imap_connect()
-            time.sleep(self.MAIL_FETCH_INTERVAL)
-
-
-
-
 
     def imap_connect(self):
         while Exception:
@@ -241,75 +210,6 @@ class Mailbot:
             log.log("mail", f"--> Emails deleted successfully: {len(mail_list)}") if mail_list else None
         except Exception as e:
             log.exception("mail", "Email failed to delete", e)
-
-    def filter_wrong_email(self, mail_list: list) -> None:
-        try:
-            wrong_emails = []
-            for mail in mail_list:
-                if not mail.REQUEST_STATUS:
-                    log.log("mail", f"--> Wrong email {mail.MAIL_ID}. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}")
-                    wrong_emails.append(mail)
-                    self.db_instance.mail_refused(mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT)
-            log.log("mail", f"--> Wrong emails overall: {len(wrong_emails)}") if wrong_emails else None
-            return wrong_emails
-        except Exception as e:
-            log.exception("mail", "Could not sort wrong emails", e)
-        
-    def filter_expired_email(self, mail_list: list) -> None:
-        try:
-            expired_emails = []
-            for mail in mail_list:
-                if time.time() - time.mktime(time.strptime(mail.MAIL_TIME, '%d-%b-%Y %H:%M:%S')) > self.mail_expire:
-                    log.log("mail", f"--> Expired email {mail.MAIL_ID}. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}")
-                    expired_emails.append(mail)
-                    self.db_instance.mail_refused(mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT)
-            log.log("mail", f"--> Expired emails overall: {len(expired_emails)}") if expired_emails else None
-            return expired_emails
-        except Exception as e:
-            log.exception("mail", "Could not sort expired emails", e)
-    def filter_rejected_email(self, mail_list: list) -> None:
-        try:
-            rejected_sender = []
-            rejected_mails = []
-            oldest_mail_by_sender = {}
-            # get the oldest mail by each sender
-            for mail in mail_list:
-                if mail.MAIL_FROM in oldest_mail_by_sender:
-                    if mail.MAIL_TIME < oldest_mail_by_sender[mail.MAIL_FROM].MAIL_TIME:
-                        oldest_mail_by_sender[mail.MAIL_FROM] = mail
-                else:
-                    oldest_mail_by_sender[mail.MAIL_FROM] = mail
-            # add all remaining mails of the sender to the rejected_mails list
-            for mail in mail_list:
-                if mail.MAIL_FROM in oldest_mail_by_sender:
-                    if mail.MAIL_ID != oldest_mail_by_sender[mail.MAIL_FROM].MAIL_ID:
-                        log.log("mail", f"--> Rejected email. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}")
-                        rejected_mails.append(mail)
-                        self.db_instance.mail_refused(mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT)
-                        if mail.MAIL_FROM not in rejected_sender:
-                            rejected_sender.append(mail.MAIL_FROM)
-            # inform the sender about the rejected emails
-            for sender in rejected_sender:
-                message = "Some of your emails have been rejected due to multiple submissions. Wait until your previous request has been processed before submitting a new one."
-                deleted_mails = []
-                for mail in rejected_mails:
-                    deleted_mails.append(f"{mail.MAIL_TIME} --> {mail.MAIL_SUBJECT}")
-                message += f"\n\nThe following emails were deleted:\n{chr(10).join(deleted_mails)}"
-                rejected_mails_response = MailResponse()
-                rejected_mails_response.set_sender(self.env_instance.mail_user)
-                rejected_mails_response.set_receiver(sender)
-                rejected_mails_response.set_subject('osintbot rejected emails')
-                rejected_mails_response.set_body(message)
-                self.send_email(rejected_mails_response)
-            # remove all remaining mails of the sender
-            log.log("mail", f"--> Rejected emails overall: {len(rejected_mails)}") if rejected_mails else None
-            return rejected_mails
-        except Exception as e:
-            log.exception("mail", "Could not sort rejected emails", e)
-
-
-
-
 
     def send_email(self, mail: MailResponse):
         try:
