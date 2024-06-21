@@ -15,8 +15,9 @@ class MailRequest:
     REQUEST_TARGET = []
     REQUEST_STATUS = None
 
-    def __init__(self, mail_id, mail_full):
+    def __init__(self, mail_id, mail_full, FUNCTIONS):
         try:
+            self.FUNCTIONS = FUNCTIONS
             self.MAIL_ID = mail_id
             self.MAIL_TIME = mail_full.split('Date: ')[1].split('\r\n')[0].strip()
             self.MAIL_TIME = time.strftime('%d-%b-%Y %H:%M:%S', time.strptime(self.MAIL_TIME, '%a, %d %b %Y %H:%M:%S %z'))
