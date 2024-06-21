@@ -160,7 +160,7 @@ class Mailbot:
                 log.log("mail", request_status)
                 self.db_instance.mail_refused(mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT)
                 filtered_mails.append(mail)
-        return filtered_mails
+        return [mail for mail in mail_list if mail not in filtered_mails]
 
 
             
