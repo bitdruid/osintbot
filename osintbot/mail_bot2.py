@@ -17,6 +17,13 @@ class Mailbot:
     IMAP = None
     SMTP = None
 
+    MAIL_QUEUE_SENDER_SET = set()
+    MAIL_SENDER = {}
+
+    MAIL_LAST_RATE_LIMIT_TIME = 0
+    MAIL_RATE_LIMIT = 5
+    MAIL_RATE_LIMIT_INTERVAL = 60
+
     def __init__(self, env_instance, db_instance):
         self.mail_expire = 360
         self.connection_expire = 3600
@@ -40,15 +47,8 @@ class Mailbot:
             mail_request_list = self.fetch_email()
             if mail_request_list:
                 log.log("mail", f"----- Emails found: {len(mail_request_list)} -----")
-                [self.validate_request(mail) for mail in mail_request_list]
+                mail_request_list = self.mail_filter(mail_request_list)
                 [self.db_instance.mail_insert(False, mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT, mail.REQUEST_FUNCTION, mail.REQUEST_TARGET) for mail in mail_request_list]
-                wrong_mails = self.filter_wrong_email(mail_request_list)
-                mail_request_list = [mail for mail in mail_request_list if mail not in wrong_mails]
-                expired_mails = self.filter_expired_email(mail_request_list)
-                mail_request_list = [mail for mail in mail_request_list if mail not in expired_mails]
-                rejected_mails = self.filter_rejected_email(mail_request_list)
-                mail_request_list = [mail for mail in mail_request_list if mail not in rejected_mails]
-                delete_mails = list(set(wrong_mails + expired_mails + rejected_mails))
                 for mail_request in mail_request_list:
                     log.log("mail", f"Processing email: {mail_request.MAIL_ID} - time: {mail_request.MAIL_TIME}, from: {mail_request.MAIL_FROM}, subject: {mail_request.MAIL_SUBJECT}, jobs: {len(mail_request.REQUEST_TARGET)}")
                     mail_response = MailResponse()
@@ -57,8 +57,6 @@ class Mailbot:
                     mail_response.set_subject(f'osintbot response to: {mail_request.MAIL_SUBJECT} for {len(mail_request.REQUEST_TARGET)} jobs')
                     mail_response.set_content(self.run_function(mail_request))
                     self.send_email(mail_response)
-                    delete_mails.append(mail_request)
-                self.delete_email(delete_mails)
 
             if time.time() - current_time > self.connection_expire:
                 log.log("mail", f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Connection expired. Reconnecting to IMAP server {self.env_instance.imap_server}.")
@@ -107,92 +105,88 @@ class Mailbot:
 
 
 
+    def mail_filter(self, mail_list: list) -> list:
+
+        def filter_limit(mail_request: MailRequest) -> str:
+            if mail_request.MAIL_FROM in self.MAIL_QUEUE_SENDER_SET:
+                    request_status = f"--> Limit for jobqueue exceeded. From: '{mail_request.MAIL_FROM}', Subject: '{mail_request.MAIL_SUBJECT}', Time: '{mail_request.MAIL_TIME}'"
+                    return request_status
+            else:
+                return True
+        
+        # rate limit means that the same sender can only send MAIL_RATE_LIMIT mails per MAIL_RATE_LIMIT_INTERVAL seconds
+        def filter_rate_limit(mail_request: MailRequest) -> str:
+            current_time = time.time()
+            if current_time - self.MAIL_LAST_RATE_LIMIT_TIME > self.MAIL_RATE_LIMIT_INTERVAL:
+                self.MAIL_SENDER = {}
+                self.MAIL_LAST_RATE_LIMIT_TIME = current_time
+            else:
+                if mail_request.MAIL_FROM in self.MAIL_SENDER:
+                    if self.MAIL_SENDER[mail_request.MAIL_FROM] >= self.MAIL_RATE_LIMIT:
+                        request_status = f"--> Rate limit exceeded. From: '{mail_request.MAIL_FROM}', Subject: '{mail_request.MAIL_SUBJECT}', Time: '{mail_request.MAIL_TIME}'"
+                        return request_status
+                    else:
+                        self.MAIL_SENDER[mail_request.MAIL_FROM] += 1
+                        return True
+                else:
+                    self.MAIL_SENDER[mail_request.MAIL_FROM] = 1
+                    return True
+        
+        # expired means that a mail is only valid for MAIL_EXPIRE seconds
+        def filter_expired(mail_request: MailRequest) -> str:
+            if time.time() - time.mktime(time.strptime(mail_request.MAIL_TIME, '%d-%b-%Y %H:%M:%S')) > self.mail_expire:
+                request_status = f"--> Expired email {mail_request.MAIL_ID}. From: '{mail_request.MAIL_FROM}', Subject: '{mail_request.MAIL_SUBJECT}', Time: '{mail_request.MAIL_TIME}'"
+                self.db_instance.mail_refused(mail_request.MAIL_TIME, mail_request.MAIL_FROM, mail_request.MAIL_SUBJECT)
+                return request_status
+            else:
+                return True
+            
+        # invalid means that the mail does not contain a valid request that violates the rules
+        def filter_invalid(mail_request: MailRequest) -> bool:
+                if not mail_request.REQUEST_STATUS:
+                    request_status = f"--> Invalid email {mail_request.MAIL_ID}. From: '{mail_request.MAIL_FROM}', Subject: '{mail_request.MAIL_SUBJECT}', Time: '{mail_request.MAIL_TIME}'"
+                    self.db_instance.mail_refused(mail_request.MAIL_TIME, mail_request.MAIL_FROM, mail_request.MAIL_SUBJECT)
+                    return request_status
+                else:
+                    return True
+
+        filtered_mails = []
+        for mail in mail_list:
+            request_status = None
+            request_status = filter_limit(mail)
+            if not isinstance(request_status, str):
+                request_status = filter_rate_limit(mail)
+            if not isinstance(request_status, str):
+                request_status = filter_expired(mail)
+            if not isinstance(request_status, str):
+                request_status = filter_invalid(mail)
+            if isinstance(request_status, str):
+                log.log("mail", request_status)
+                self.db_instance.mail_refused(mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT)
+                filtered_mails.append(mail)
+        return [mail for mail in mail_list if mail not in filtered_mails]
+
+
+
+
+
     def delete_email(self, mail_list: list) -> None:
         try:
             for mail in mail_list:
                 self.IMAP.store(mail.MAIL_ID, '+FLAGS', '\\Deleted')
             self.IMAP.expunge()
-            log.log("mail", f"--> Emails deleted successfully: {len(mail_list)}") if mail_list else None
+            log.log("mail", f"----- Removed emails from server: {len(mail_list)} -----") if mail_list else None
         except Exception as e:
             log.exception("mail", "Email failed to delete", e)
-
-    def filter_wrong_email(self, mail_list: list) -> None:
-        try:
-            wrong_emails = []
-            for mail in mail_list:
-                if not mail.REQUEST_STATUS:
-                    log.log("mail", f"--> Wrong email {mail.MAIL_ID}. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}")
-                    wrong_emails.append(mail)
-                    self.db_instance.mail_refused(mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT)
-            log.log("mail", f"--> Wrong emails overall: {len(wrong_emails)}") if wrong_emails else None
-            return wrong_emails
-        except Exception as e:
-            log.exception("mail", "Could not sort wrong emails", e)
-        
-    def filter_expired_email(self, mail_list: list) -> None:
-        try:
-            expired_emails = []
-            for mail in mail_list:
-                if time.time() - time.mktime(time.strptime(mail.MAIL_TIME, '%d-%b-%Y %H:%M:%S')) > self.mail_expire:
-                    log.log("mail", f"--> Expired email {mail.MAIL_ID}. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}")
-                    expired_emails.append(mail)
-                    self.db_instance.mail_refused(mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT)
-            log.log("mail", f"--> Expired emails overall: {len(expired_emails)}") if expired_emails else None
-            return expired_emails
-        except Exception as e:
-            log.exception("mail", "Could not sort expired emails", e)
-    def filter_rejected_email(self, mail_list: list) -> None:
-        try:
-            rejected_sender = []
-            rejected_mails = []
-            oldest_mail_by_sender = {}
-            # get the oldest mail by each sender
-            for mail in mail_list:
-                if mail.MAIL_FROM in oldest_mail_by_sender:
-                    if mail.MAIL_TIME < oldest_mail_by_sender[mail.MAIL_FROM].MAIL_TIME:
-                        oldest_mail_by_sender[mail.MAIL_FROM] = mail
-                else:
-                    oldest_mail_by_sender[mail.MAIL_FROM] = mail
-            # add all remaining mails of the sender to the rejected_mails list
-            for mail in mail_list:
-                if mail.MAIL_FROM in oldest_mail_by_sender:
-                    if mail.MAIL_ID != oldest_mail_by_sender[mail.MAIL_FROM].MAIL_ID:
-                        log.log("mail", f"--> Rejected email. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}")
-                        rejected_mails.append(mail)
-                        self.db_instance.mail_refused(mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT)
-                        if mail.MAIL_FROM not in rejected_sender:
-                            rejected_sender.append(mail.MAIL_FROM)
-            # inform the sender about the rejected emails
-            for sender in rejected_sender:
-                message = "Some of your emails have been rejected due to multiple submissions. Wait until your previous request has been processed before submitting a new one."
-                deleted_mails = []
-                for mail in rejected_mails:
-                    deleted_mails.append(f"{mail.MAIL_TIME} --> {mail.MAIL_SUBJECT}")
-                message += f"\n\nThe following emails were deleted:\n{chr(10).join(deleted_mails)}"
-                rejected_mails_response = MailResponse()
-                rejected_mails_response.set_sender(self.env_instance.mail_user)
-                rejected_mails_response.set_receiver(sender)
-                rejected_mails_response.set_subject('osintbot rejected emails')
-                rejected_mails_response.set_body(message)
-                self.send_email(rejected_mails_response)
-            # remove all remaining mails of the sender
-            log.log("mail", f"--> Rejected emails overall: {len(rejected_mails)}") if rejected_mails else None
-            return rejected_mails
-        except Exception as e:
-            log.exception("mail", "Could not sort rejected emails", e)
-
-
-
-
 
     def send_email(self, mail: MailResponse):
         try:
             self.smtp_connect()
             self.SMTP.sendmail(mail.mail['From'], mail.mail['To'], mail.mail.as_string())
             self.SMTP.quit()
-            log.log("mail", f"--> Response sent successfully. To: {mail.mail['To']}, Subject: {mail.mail['Subject']}")
+            log.log("mail", f"--> Response sent successfully. To: '{mail.mail['To']}', Subject: '{mail.mail['Subject']}'")
         except Exception as e:
-            log.exception("mail", f"Email failed to send. To: {mail.mail['To']}, Subject: {mail.mail['Subject']}", e)
+            log.exception("mail", f"Email failed to send. To: '{mail.mail['To']}', Subject: '{mail.mail['Subject']}'", e)
 
     def fetch_email(self):
         try:
@@ -202,11 +196,15 @@ class Mailbot:
             mail_list = []
             for mail_id in messages:
                 mail_payload = self.IMAP.fetch(mail_id, '(RFC822)')[1][0][1].decode('utf-8')
-                mail_list.append(MailRequest(mail_id, mail_payload))
+                mail_list.append(MailRequest(mail_id, mail_payload, self.FUNCTIONS))
+                # sort per time, newest last
+                mail_list.sort(key=lambda x: time.mktime(time.strptime(x.MAIL_TIME, '%d-%b-%Y %H:%M:%S')))
+            if mail_list:
+                log.log("mail", f"----- Fetched emails from server: {len(mail_list)} -----")
+                self.delete_email(mail_list)
             return mail_list
         except Exception as e:
             log.exception("mail", "Email failed to fetch", e)
-
 
 
 
@@ -247,49 +245,6 @@ class Mailbot:
             return kit_helper.json_to_string(response)
         except Exception as e:
             log.exception("mail", f"Function failed to run: '{mail_request.REQUEST_FUNCTION}'", e)
-        
-    def validate_request(self, mail_request: MailRequest):
-        allowed_chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~:/?#[]@!$&'()*+,;="
-        request_status = True
-        request = mail_request.MAIL_SUBJECT.split(' ')
-        target = []
-
-        if len(request) == 0:
-            request_status = "No query args in mail subject"
-            log.log("mail", request_status)
-        elif len(request) == 1:
-            target = mail_request.MAIL_BODY.splitlines() if mail_request.MAIL_BODY else []
-            if len(target) > 5:
-                request_status = "Too many query args in mail body"
-                log.log("mail", request_status)
-        elif len(request) == 2:
-            target = [request[1]]
-        elif len(request) > 2:
-            request_status = "Too many query args in mail subject"
-            log.log("mail", request_status)
-
-        function = request[0].lower()
-        target = [item.lower() for item in target]
-
-        if not all(c in allowed_chars for c in function):
-            request_status = "Invalid characters in function"
-            log.log("mail", request_status)
-
-        for item in target:
-            if not all(c in allowed_chars for c in item):
-                request_status = "Invalid characters in query args"
-                log.log("mail", request_status)
-
-        if isinstance(request_status, bool):
-            if function in self.FUNCTIONS:
-                mail_request.REQUEST_FUNCTION = shlex.quote(function)
-                mail_request.REQUEST_TARGET = [shlex.quote(item) for item in target]
-                mail_request.REQUEST_STATUS = True
-            else:
-                log.log("mail", f"Invalid request function: '{function}'")
-                mail_request.REQUEST_STATUS = False
-        else:
-            mail_request.REQUEST_STATUS = False
 
 
 
