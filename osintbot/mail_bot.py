@@ -24,6 +24,7 @@ class Mailbot:
 
     MAIL_SENDER = {} # stores sender and amount of emails do check rate limit // sender gets deleted after MAIL_RATE_LIMIT_INTERVAL seconds
 
+    MAIL_LAST_RATE_LIMIT_TIME = 0 # time of the last rate limit check
     MAIL_RATE_LIMIT = 4 # amount of emails
     MAIL_RATE_LIMIT_INTERVAL = 60 # seconds
     MAIL_EXPIRE = 360 # seconds
@@ -90,46 +91,33 @@ class Mailbot:
     # filter the mails
     def mail_filter_new(self, mail_list: list) -> list:
 
-        # rejected means that the sender sent a new mail before the previous mail was processed
-        def filter_rejected(mail_request_list: list) -> list:
-            rejected_sender = []
-            rejected_mails = []
-            oldest_mail_by_sender = {}
-            # get the oldest mail by each sender
-            for mail in mail_request_list:
-                if mail.MAIL_FROM in oldest_mail_by_sender:
-                    if mail.MAIL_TIME < oldest_mail_by_sender[mail.MAIL_FROM].MAIL_TIME:
-                        oldest_mail_by_sender[mail.MAIL_FROM] = mail
+        def filter_limit(mail_request: MailRequest) -> str:
+            if any(queue_mail.MAIL_FROM == mail_request.MAIL_FROM for queue_mail in self.MAIL_QUEUE):
+                request_status = f"--> Limit for simultaneous jobs exceeded. From: {mail_request.MAIL_FROM}, Subject: {mail_request.MAIL_SUBJECT}, Time: {mail_request.MAIL_TIME}"
+                return request_status
+            else:
+                return True
+        
+        # rate limit means that the same sender can only send MAIL_RATE_LIMIT mails per MAIL_RATE_LIMIT_INTERVAL seconds
+        def filter_rate_limit(mail_request: MailRequest) -> str:
+            current_time = time.time()
+            if current_time - self.MAIL_LAST_RATE_LIMIT_TIME > self.MAIL_RATE_LIMIT_INTERVAL:
+                self.MAIL_SENDER = {}
+                self.MAIL_LAST_RATE_LIMIT_TIME = current_time
+            else:
+                if mail_request.MAIL_FROM in self.MAIL_SENDER:
+                    if self.MAIL_SENDER[mail_request.MAIL_FROM] >= self.MAIL_RATE_LIMIT:
+                        request_status = f"--> Rate limit exceeded. From: {mail_request.MAIL_FROM}, Subject: {mail_request.MAIL_SUBJECT}, Time: {mail_request.MAIL_TIME}"
+                        return request_status
+                    else:
+                        self.MAIL_SENDER[mail_request.MAIL_FROM] += 1
+                        return True
                 else:
-                    oldest_mail_by_sender[mail.MAIL_FROM] = mail
-            # add all remaining mails of the sender to the rejected_mails list
-            for mail in mail_request_list:
-                if mail.MAIL_FROM in oldest_mail_by_sender:
-                    if mail.MAIL_ID != oldest_mail_by_sender[mail.MAIL_FROM].MAIL_ID:
-                        log.log("mail", f"--> Rejected email. From: {mail.MAIL_FROM}, Subject: {mail.MAIL_SUBJECT}, Time: {mail.MAIL_TIME}")
-                        rejected_mails.append(mail)
-                        self.db_instance.mail_refused(mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT)
-                        if mail.MAIL_FROM not in rejected_sender:
-                            rejected_sender.append(mail.MAIL_FROM)
-            # inform the sender about the rejected emails
-            for sender in rejected_sender:
-                message = "Some of your emails have been rejected due to multiple submissions. Wait until your previous request has been processed before submitting a new one."
-                deleted_mails = []
-                for mail in rejected_mails:
-                    deleted_mails.append(f"{mail.MAIL_TIME} --> {mail.MAIL_SUBJECT}")
-                message += f"\n\nThe following emails were deleted:\n{chr(10).join(deleted_mails)}"
-                rejected_mails_response = MailResponse()
-                rejected_mails_response.set_sender(self.env_instance.mail_user)
-                rejected_mails_response.set_receiver(sender)
-                rejected_mails_response.set_subject('osintbot rejected emails')
-                rejected_mails_response.set_body(message)
-                self.send_email(rejected_mails_response)
-            # remove all remaining mails of the sender
-            log.log("mail", f"--> Rejected emails overall: {len(rejected_mails)}") if rejected_mails else None
-            return rejected_mails
+                    self.MAIL_SENDER[mail_request.MAIL_FROM] = 1
+                    return True
         
         # expired means that a mail is only valid for MAIL_EXPIRE seconds
-        def filter_expired(mail_request: MailRequest) -> bool:
+        def filter_expired(mail_request: MailRequest) -> str:
             if time.time() - time.mktime(time.strptime(mail_request.MAIL_TIME, '%d-%b-%Y %H:%M:%S')) > self.mail_expire:
                 request_status = f"--> Expired email {mail_request.MAIL_ID}. From: {mail_request.MAIL_FROM}, Subject: {mail_request.MAIL_SUBJECT}, Time: {mail_request.MAIL_TIME}"
                 self.db_instance.mail_refused(mail_request.MAIL_TIME, mail_request.MAIL_FROM, mail_request.MAIL_SUBJECT)
@@ -145,31 +133,17 @@ class Mailbot:
                     return request_status
                 else:
                     return True
-                
-        # rate limit means that the same sender can only send MAIL_RATE_LIMIT mails per MAIL_RATE_LIMIT_INTERVAL seconds
-        def filter_rate_limit(mail_request: MailRequest) -> str:
-            if mail_request.MAIL_FROM in self.MAIL_SENDER:
-                if self.MAIL_SENDER[mail_request.MAIL_FROM] >= self.MAIL_RATE_LIMIT:
-                    request_status = f"--> Rate limit exceeded. From: {mail_request.MAIL_FROM}, Subject: {mail_request.MAIL_SUBJECT}, Time: {mail_request.MAIL_TIME}"
-                    return request_status
-                else:
-                    self.MAIL_SENDER[mail_request.MAIL_FROM] += 1
-                    return True
-            else:
-                self.MAIL_SENDER[mail_request.MAIL_FROM] = 1
-                threading.Timer(self.MAIL_RATE_LIMIT_INTERVAL, self.MAIL_SENDER.pop, args=(mail_request.MAIL_FROM,)).start()
-                return True
 
         filtered_mails = []
         for mail in mail_list:
             request_status = None
-            request_status = filter_rejected(mail_list)
+            request_status = filter_limit(mail)
+            if not isinstance(request_status, str):
+                request_status = filter_rate_limit(mail)
             if not isinstance(request_status, str):
                 request_status = filter_expired(mail)
             if not isinstance(request_status, str):
                 request_status = filter_invalid(mail)
-            if not isinstance(request_status, str):
-                request_status = filter_rate_limit(mail)
             if isinstance(request_status, str):
                 log.log("mail", request_status)
                 self.db_instance.mail_refused(mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT)
@@ -355,6 +329,8 @@ class Mailbot:
             for mail_id in messages:
                 mail_payload = self.IMAP.fetch(mail_id, '(RFC822)')[1][0][1].decode('utf-8')
                 mail_list.append(MailRequest(mail_id, mail_payload))
+                # sort per time, newest last
+                mail_list.sort(key=lambda x: time.mktime(time.strptime(x.MAIL_TIME, '%d-%b-%Y %H:%M:%S')))
             return mail_list
         except Exception as e:
             log.exception("mail", "Email failed to fetch", e)
