@@ -20,7 +20,7 @@ class Mailbot:
     IMAP = None
     SMTP = None
 
-    MAIL_FETCH_INTERVAL = 5 # seconds
+    MAIL_FETCH_INTERVAL = 30 # seconds
     MAIL_PROCESS_INTERVAL = 60 # seconds
 
     MAIL_SENDER = {} # stores sender and amount of emails do check rate limit // sender gets deleted after MAIL_RATE_LIMIT_INTERVAL seconds
@@ -39,16 +39,16 @@ class Mailbot:
         self.connection_expire = 3600
         self.env_instance = env_instance
         self.db_instance = db_instance
-        self.mail_run_new()
+        self.mail_run()
 
 
 
 
 
     # start the subprocesses for checking and processing mails
-    def mail_run_new(self):
-        check_mail_thread = threading.Thread(target=self.mail_check_new)
-        process_mail_thread = threading.Thread(target=self.mail_process_new)
+    def mail_run(self):
+        check_mail_thread = threading.Thread(target=self.mail_check)
+        process_mail_thread = threading.Thread(target=self.mail_process)
         check_mail_thread.start()
         process_mail_thread.start()
         check_mail_thread.join()
@@ -59,7 +59,7 @@ class Mailbot:
 
 
     # fetch mails and filter them
-    def mail_check_new(self):
+    def mail_check(self):
         current_time = time.time()
         self.imap_connect()
         while True:
@@ -69,7 +69,7 @@ class Mailbot:
                 for mail in mail_request_list:
                     self.db_instance.mail_insert(False, mail.MAIL_TIME, mail.MAIL_FROM, mail.MAIL_SUBJECT, mail.REQUEST_FUNCTION, mail.REQUEST_TARGET)
                 # filter mails
-                mail_request_list = self.mail_filter_new(mail_request_list)
+                mail_request_list = self.mail_filter(mail_request_list)
                 # add remaining mails to the mail queue
                 for mail in mail_request_list:
                     self.MAIL_QUEUE.put(mail)
@@ -83,7 +83,7 @@ class Mailbot:
             time.sleep(self.MAIL_FETCH_INTERVAL)
     
     # process the mail queue
-    def mail_process_new(self):
+    def mail_process(self):
         while True:
             if not self.MAIL_QUEUE.empty():
                 mail = self.MAIL_QUEUE.get()
@@ -105,7 +105,7 @@ class Mailbot:
 
 
     # filter the mails
-    def mail_filter_new(self, mail_list: list) -> list:
+    def mail_filter(self, mail_list: list) -> list:
 
         def filter_limit(mail_request: MailRequest) -> str:
             if mail_request.MAIL_FROM in self.MAIL_QUEUE_SENDER_SET:
