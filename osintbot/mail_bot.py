@@ -21,17 +21,18 @@ class Mailbot:
     SMTP = None
 
     MAIL_FETCH_INTERVAL = 30 # seconds
-    MAIL_PROCESS_INTERVAL = 60 # seconds
+    MAIL_PROCESS_INTERVAL = 10 # seconds
 
-    MAIL_SENDER = {} # stores sender and amount of emails do check rate limit // sender gets deleted after MAIL_RATE_LIMIT_INTERVAL seconds
+    MAIL_SENDER = {} # stores the amount of emails per sender to check process and rate limit
 
     MAIL_LAST_RATE_LIMIT_TIME = 0 # time of the last rate limit check
     MAIL_RATE_LIMIT = 4 # amount of emails
     MAIL_RATE_LIMIT_INTERVAL = 60 # seconds
     MAIL_EXPIRE = 360 # seconds
 
+    MAIL_PROCESS_LIMIT = 1 # amount of emails per sender to be in the queue at the same time
+
     MAIL_QUEUE = queue.Queue()
-    MAIL_QUEUE_SENDER_SET = set() # stores the sender of the mails in the queue
 
     # initialize the mailbot
     def __init__(self, env_instance, db_instance):
@@ -73,7 +74,7 @@ class Mailbot:
                 # add remaining mails to the mail queue
                 for mail in mail_request_list:
                     self.MAIL_QUEUE.put(mail)
-                    self.MAIL_QUEUE_SENDER_SET.add(mail.MAIL_FROM)
+                    self.MAIL_SENDER[mail.MAIL_FROM] = self.MAIL_SENDER.get(mail.MAIL_FROM, 0) + 1
                 # periodically reconnect to the IMAP server
             if time.time() - current_time > self.connection_expire:
                 log.log("mail", f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Connection expired. Reconnecting to IMAP server {self.env_instance.imap_server}.")
@@ -87,14 +88,16 @@ class Mailbot:
         while True:
             if not self.MAIL_QUEUE.empty():
                 mail = self.MAIL_QUEUE.get()
-                log.log("mail", f"Processing email: {mail.MAIL_ID} - from: '{mail.MAIL_FROM}', subject: '{mail.MAIL_SUBJECT}', time: '{mail.MAIL_TIME}', jobs: {len(mail.REQUEST_TARGET)}")
+                log.log("mail", f"{self.queue_info()} Processing email: {mail.MAIL_ID} - from: '{mail.MAIL_FROM}', subject: '{mail.MAIL_SUBJECT}', time: '{mail.MAIL_TIME}', jobs: {len(mail.REQUEST_TARGET)}")
                 mail_response = MailResponse()
                 mail_response.set_sender(self.env_instance.mail_user)
                 mail_response.set_receiver(mail.MAIL_FROM)
                 mail_response.set_subject(f"osintbot response to: '{mail.MAIL_SUBJECT}' for {len(mail.REQUEST_TARGET)} jobs")
                 mail_response.set_content(self.run_function(mail))
                 self.send_email(mail_response)
-                self.MAIL_QUEUE_SENDER_SET.remove(mail.MAIL_FROM)
+                self.MAIL_SENDER[mail.MAIL_FROM] -= 1
+                if self.MAIL_SENDER[mail.MAIL_FROM] == 0:
+                    del self.MAIL_SENDER[mail.MAIL_FROM]
                 # wait MAIL_PROCESS_INTERVAL seconds before processing the next mail
                 time.sleep(self.MAIL_PROCESS_INTERVAL)
             # if no mails are in the queue, wait MAIL_FETCH_INTERVAL seconds before checking again
@@ -108,8 +111,9 @@ class Mailbot:
     def mail_filter(self, mail_list: list) -> list:
 
         def filter_limit(mail_request: MailRequest) -> str:
-            if mail_request.MAIL_FROM in self.MAIL_QUEUE_SENDER_SET:
-                    request_status = f"--> Limit for jobqueue exceeded. From: '{mail_request.MAIL_FROM}', Subject: '{mail_request.MAIL_SUBJECT}', Time: '{mail_request.MAIL_TIME}'"
+            if mail_request.MAIL_FROM in self.MAIL_SENDER:
+                if self.MAIL_SENDER[mail_request.MAIL_FROM] >= self.MAIL_PROCESS_LIMIT:
+                    request_status = f"{self.queue_info()} --> Limit for jobqueue exceeded. From: '{mail_request.MAIL_FROM}', Subject: '{mail_request.MAIL_SUBJECT}', Time: '{mail_request.MAIL_TIME}'"
                     return request_status
             else:
                 return True
@@ -118,24 +122,21 @@ class Mailbot:
         def filter_rate_limit(mail_request: MailRequest) -> str:
             current_time = time.time()
             if current_time - self.MAIL_LAST_RATE_LIMIT_TIME > self.MAIL_RATE_LIMIT_INTERVAL:
-                self.MAIL_SENDER = {}
                 self.MAIL_LAST_RATE_LIMIT_TIME = current_time
             else:
                 if mail_request.MAIL_FROM in self.MAIL_SENDER:
                     if self.MAIL_SENDER[mail_request.MAIL_FROM] >= self.MAIL_RATE_LIMIT:
-                        request_status = f"--> Rate limit exceeded. From: '{mail_request.MAIL_FROM}', Subject: '{mail_request.MAIL_SUBJECT}', Time: '{mail_request.MAIL_TIME}'"
+                        request_status = f"{self.queue_info()} --> Rate limit exceeded. From: '{mail_request.MAIL_FROM}', Subject: '{mail_request.MAIL_SUBJECT}', Time: '{mail_request.MAIL_TIME}'"
                         return request_status
                     else:
-                        self.MAIL_SENDER[mail_request.MAIL_FROM] += 1
                         return True
                 else:
-                    self.MAIL_SENDER[mail_request.MAIL_FROM] = 1
                     return True
         
         # expired means that a mail is only valid for MAIL_EXPIRE seconds
         def filter_expired(mail_request: MailRequest) -> str:
             if time.time() - time.mktime(time.strptime(mail_request.MAIL_TIME, '%d-%b-%Y %H:%M:%S')) > self.mail_expire:
-                request_status = f"--> Expired email {mail_request.MAIL_ID}. From: '{mail_request.MAIL_FROM}', Subject: '{mail_request.MAIL_SUBJECT}', Time: '{mail_request.MAIL_TIME}'"
+                request_status = f"{self.queue_info()} --> Expired email {mail_request.MAIL_ID}. From: '{mail_request.MAIL_FROM}', Subject: '{mail_request.MAIL_SUBJECT}', Time: '{mail_request.MAIL_TIME}'"
                 self.db_instance.mail_refused(mail_request.MAIL_TIME, mail_request.MAIL_FROM, mail_request.MAIL_SUBJECT)
                 return request_status
             else:
@@ -144,7 +145,7 @@ class Mailbot:
         # invalid means that the mail does not contain a valid request that violates the rules
         def filter_invalid(mail_request: MailRequest) -> bool:
                 if not mail_request.REQUEST_STATUS:
-                    request_status = f"--> Invalid email {mail_request.MAIL_ID}. From: '{mail_request.MAIL_FROM}', Subject: '{mail_request.MAIL_SUBJECT}', Time: '{mail_request.MAIL_TIME}'"
+                    request_status = f"{self.queue_info()} --> Invalid email {mail_request.MAIL_ID}. From: '{mail_request.MAIL_FROM}', Subject: '{mail_request.MAIL_SUBJECT}', Time: '{mail_request.MAIL_TIME}'"
                     self.db_instance.mail_refused(mail_request.MAIL_TIME, mail_request.MAIL_FROM, mail_request.MAIL_SUBJECT)
                     return request_status
                 else:
@@ -220,9 +221,9 @@ class Mailbot:
             self.smtp_connect()
             self.SMTP.sendmail(mail.mail['From'], mail.mail['To'], mail.mail.as_string())
             self.SMTP.quit()
-            log.log("mail", f"--> Response sent successfully. To: '{mail.mail['To']}', Subject: '{mail.mail['Subject']}'")
+            log.log("mail", f"{self.queue_info()} --> Sending successed. To: '{mail.mail['To']}', Subject: '{mail.mail['Subject']}'")
         except Exception as e:
-            log.exception("mail", f"Email failed to send. To: '{mail.mail['To']}', Subject: '{mail.mail['Subject']}'", e)
+            log.exception("mail", f"{self.queue_info()} Sending failed. To: '{mail.mail['To']}', Subject: '{mail.mail['Subject']}'", e)
 
     def fetch_email(self):
         try:
@@ -275,15 +276,16 @@ class Mailbot:
             response = []
             function = self.FUNCTIONS[mail_request.REQUEST_FUNCTION]
             for target in mail_request.REQUEST_TARGET:
-                log.log("mail", f"--> Running function: '{mail_request.REQUEST_FUNCTION}' with input: '{target}'")
+                log.log("mail", f"{self.queue_info()} --> Running function: '{mail_request.REQUEST_FUNCTION}' with input: '{target}'")
                 result = function(input=target, function=mail_request.REQUEST_FUNCTION)
                 response.append({"target": target, "result": result})
                 time.sleep(10)
             return kit_helper.json_to_string(response)
         except Exception as e:
-            log.exception("mail", f"Function failed to run: '{mail_request.REQUEST_FUNCTION}'", e)
+            log.exception("mail", f"{self.queue_info()} Function failed to run: '{mail_request.REQUEST_FUNCTION}'", e)
 
-
+    def queue_info(self):
+        return f"(Mails2do: {self.MAIL_QUEUE.qsize() + 1})"
 
 
 def main():
