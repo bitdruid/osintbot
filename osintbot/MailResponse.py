@@ -25,20 +25,19 @@ class MailResponse:
 
     def set_content(self, response_contents):
         try:
-            
             # if there is only one response, check if it is a file or text
-            if isinstance(response_contents, dict):
-
+            if len(response_contents) == 1:
+                response_contents = response_contents[0]
                 if isinstance(response_contents['result'], list):
                     for file_path in response_contents['result']:
                         self.attach_file(file_path)
                 elif not os.path.isfile(response_contents['result']):
-                    self.mail.attach(MIMEText(response_contents['result'], 'plain'))
+                    self.set_body(response_contents['result'])
                 else:
-                    self.attach_file(response_contents['result'])
+                    self.attach_text(response_contents['target'], response_contents['result'])               
 
             # if there are multiple responses, check if they are files or text
-            if isinstance(response_contents, list):
+            elif len(response_contents) > 1:
                 
                 for entry in response_contents:
                     if isinstance(entry['result'], list): # add all results of the entry in list as attachments
