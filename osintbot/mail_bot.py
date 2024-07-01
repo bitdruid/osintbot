@@ -20,8 +20,8 @@ class Mailbot:
     IMAP = None
     SMTP = None
 
-    MAIL_FETCH_INTERVAL = 5 # seconds
-    MAIL_PROCESS_INTERVAL = 10 # seconds
+    MAIL_FETCH_INTERVAL = 30 # seconds
+    MAIL_PROCESS_INTERVAL = 5 # seconds
 
     MAIL_SENDER = {} # stores the amount of emails per sender to check process and rate limit
 
@@ -80,9 +80,8 @@ class Mailbot:
                 # periodically reconnect to the IMAP server
             if time.time() - current_time > self.connection_expire:
                 log.log("mail", f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Connection expired. Reconnecting to IMAP server {self.env_instance.imap_server}.")
-                self.imap_disconnect()
+                self.imap_reconnect()
                 current_time = time.time()
-                self.imap_connect()
             time.sleep(self.MAIL_FETCH_INTERVAL)
     
     # process the mail queue
@@ -100,10 +99,8 @@ class Mailbot:
                 self.MAIL_SENDER[mail.MAIL_FROM] -= 1
                 if self.MAIL_SENDER[mail.MAIL_FROM] == 0:
                     del self.MAIL_SENDER[mail.MAIL_FROM]
-                # wait MAIL_PROCESS_INTERVAL seconds before processing the next mail
-                time.sleep(self.MAIL_PROCESS_INTERVAL)
-            # if no mails are in the queue, wait MAIL_FETCH_INTERVAL seconds before checking again
-            time.sleep(self.MAIL_FETCH_INTERVAL)
+            # wait MAIL_PROCESS_INTERVAL seconds before processing the next mail
+            time.sleep(self.MAIL_PROCESS_INTERVAL)
 
 
 
@@ -194,6 +191,11 @@ class Mailbot:
             self.IMAP.logout()
         except Exception as e:
             log.exception("mail", "IMAP disconnection failed", e)
+
+    def imap_reconnect(self):
+        log.log("mail", f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Connection expired. Reconnecting to IMAP server {self.env_instance.imap_server}.")
+        self.imap_disconnect()
+        self.imap_connect()
 
     def smtp_connect(self):
         while Exception:
