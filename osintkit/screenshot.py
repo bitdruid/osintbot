@@ -80,6 +80,7 @@ def screenshot(playwright: Playwright, url: str, path: str = None):
     )
     page = browser.new_page()
     page.goto(url)
+    page.wait_for_timeout(2000)
     filename = f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{sanitize_url_to_filename(url)}.jpeg"
     if path:
         screenshot_path = os.path.join(path, f"{filename}.jpeg")
